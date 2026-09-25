@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>导弹制导交战 · 网页可视化合集</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: radial-gradient(1200px 800px at 70% -10%, #14243f 0%, #0b1220 55%, #070d18 100%);
+    color: #e8edf5; padding: 32px;
+  }
+  .wrap { max-width: 720px; width: 100%; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: .01em; }
+  p.sub { margin-top: 10px; color: #9aa7ba; font-size: 15px; line-height: 1.7; }
+  .cards { margin-top: 32px; display: grid; gap: 16px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit; padding: 22px 24px;
+    border: 1px solid rgba(255,255,255,.10); border-radius: 16px;
+    background: rgba(255,255,255,.045); backdrop-filter: blur(8px);
+    transition: transform .25s cubic-bezier(.16,1,.3,1), border-color .25s, background .25s;
+  }
+  a.card:hover { transform: translateY(-2px); border-color: rgba(80,170,255,.45); background: rgba(255,255,255,.07); }
+  .card h2 { font-size: 18px; font-weight: 650; color: #7fc0ff; }
+  .card p { margin-top: 6px; font-size: 14px; color: #aab6c6; line-height: 1.65; }
+  footer { margin-top: 36px; font-size: 12.5px; color: #66738a; line-height: 1.7; }
+  footer a { color: #8fb8e0; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>导弹制导交战 · 网页可视化合集</h1>
+  <p class="sub">把 MATLAB 官方制导示例 aero_guidance 的仿真结果，做成两个零构建、纯前端的网页演示。
+  在线直接打开即可运行，无需安装任何东西。</p>
+  <div class="cards">
+    <a class="card" href="./web-animation/index.html">
+      <h2>三维拦截交战动画（three.js）</h2>
+      <p>真实贴图场景 · 6 种机位 · 实时遥测与曲线 · 命中特效与终段慢放 · 可离线渲染出片</p>
+    </a>
+    <a class="card" href="./web-showcase/index.html">
+      <h2>官方示例逐页精读</h2>
+      <p>对 MATLAB/Simulink 制导系统设计示例的结构、公式与调参逐页讲解（29 屏翻页）</p>
+    </a>
+  </div>
+  <footer>
+    数据来源：MathWorks 官方示例 "Designing a Guidance System in MATLAB and Simulink"，仅含仿真输出数值，与 MathWorks 无隶属关系。<br>
+    源码与部署说明见 <a href="https://github.com/SOGERSEN/missile-guidance-web">GitHub 仓库</a> · 代码以 MIT 许可发布
+  </footer>
+</div>
+</body>
+</html>

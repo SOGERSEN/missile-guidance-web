@@ -1,0 +1,15 @@
+# Tool / editor state
+.mimosa/
+.slprj/
+slprj/
+*.asv
+*.mex*
+
+# OS noise
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Local server / logs
+*.log
+__pycache__/

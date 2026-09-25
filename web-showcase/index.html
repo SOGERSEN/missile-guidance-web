@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="bIPb9ce5Cm6RB7bvB0Gmfj">
+<head data-page-node-id="Bh4H7jAw48uN1oGc04FpOC">
+<meta charset="UTF-8" data-page-node-id="fgk8mOmGD4cOBOlVdpZX6a">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="Y5b7e3kTEtZGdmdx0sgaM4">
+<title>导弹制导系统设计示例 · 逐页精读 | 导弹制导与控制系统实训</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --bg2:#0e1729;
+    --card:rgba(255,255,255,.05);
+    --card-border:rgba(255,255,255,.10);
+    --text:#eef3f9;
+    --muted:#aebccd;
+    --faint:#7f93a9;
+    --cyan:#5ecbf7;
+    --cyan-strong:#8edafa;
+    --amber:#ffc06a;
+    --rose:#f68ab4;
+    --violet:#b3aef8;
+    --green:#6fe0ae;
+    --mono:"Cascadia Mono",Consolas,"Courier New",monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,"SF Pro Display","SF Pro Text","Segoe UI Variable","Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;
+    line-height:1.8;
+    font-size:17.5px;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(94,203,247,.35)}
+  b,strong{color:#fff;font-weight:700}
+  em{color:var(--amber);font-style:normal;font-weight:700}
+  .kw{color:var(--cyan-strong);font-weight:700}
+  code{font-family:var(--mono);font-size:.86em;background:rgba(94,203,247,.12);
+    color:#a5e2fb;border:1px solid rgba(94,203,247,.22);border-radius:6px;padding:2px 8px;white-space:nowrap}
+
+  /* ================= 顶部栏 ================= */
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:99;
+    background:linear-gradient(90deg,var(--cyan),var(--amber));border-radius:0 2px 2px 0;transition:width .25s linear}
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:98;height:56px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;
+    background:rgba(11,18,32,.55);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:700;color:#dfe9f4;letter-spacing:.02em}
+  .brand svg{flex:none}
+  .part-label{font-size:13px;color:var(--faint);letter-spacing:.14em;font-weight:600}
+
+  /* ================= 右侧圆点导航 ================= */
+  .rail{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:98;
+    display:flex;flex-direction:column;gap:9px;align-items:center}
+  .rail button{
+    width:8px;height:8px;border-radius:5px;border:none;cursor:pointer;
+    background:rgba(255,255,255,.22);padding:0;position:relative;
+    transition:height .45s var(--ease),background .45s var(--ease),transform .45s var(--ease);
+  }
+  .rail button:hover{background:rgba(255,255,255,.5);transform:scale(1.25)}
+  .rail button.active{height:24px;background:var(--cyan)}
+  .rail button::after{
+    content:attr(data-tip);position:absolute;right:20px;top:50%;transform:translateY(-50%) translateX(6px);
+    background:rgba(16,27,46,.95);border:1px solid rgba(255,255,255,.14);color:#dfe9f4;
+    font-size:12.5px;padding:5px 12px;border-radius:9px;white-space:nowrap;
+    opacity:0;pointer-events:none;transition:opacity .35s var(--ease),transform .35s var(--ease);
+  }
+  .rail button:hover::after{opacity:1;transform:translateY(-50%) translateX(0)}
+
+  /* ================= 页码指示 ================= */
+  .counter{position:fixed;right:26px;bottom:22px;z-index:98;
+    font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:.18em;
+    background:rgba(11,18,32,.5);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);
+    padding:5px 13px;border-radius:999px}
+  .counter b{color:var(--cyan);font-weight:700}
+  .scroll-hint{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:97;
+    color:var(--faint);font-size:12.5px;letter-spacing:.3em;display:flex;flex-direction:column;align-items:center;gap:6px;
+    transition:opacity .8s var(--ease);pointer-events:none}
+  .scroll-hint .wheel{width:22px;height:34px;border:1.5px solid rgba(255,255,255,.3);border-radius:12px;position:relative}
+  .scroll-hint .wheel::after{content:"";position:absolute;left:50%;top:6px;width:3px;height:7px;border-radius:2px;
+    background:var(--cyan);transform:translateX(-50%);animation:wheelDrop 2.2s var(--ease) infinite}
+  @keyframes wheelDrop{0%{opacity:0;transform:translateX(-50%) translateY(0)}25%{opacity:1}70%{opacity:0;transform:translateX(-50%) translateY(11px)}100%{opacity:0}}
+
+  /* ================= 幻灯容器 ================= */
+  .deck{height:100vh;overflow-y:auto;scroll-snap-type:y mandatory;
+    scroll-behavior:smooth;scrollbar-width:none}
+  .deck::-webkit-scrollbar{display:none}
+  .slide{
+    height:100vh;scroll-snap-align:start;scroll-snap-stop:always;
+    display:flex;flex-direction:column;justify-content:center;
+    padding:76px 8.5vw 60px;position:relative;overflow:hidden;
+  }
+  .wrap{width:100%;max-width:1150px;margin:0 auto}
+  /* 焦点版式（用户验收过的唯一版式，硬性规则见 Rules/webshowcase_layout.mdc）：
+     内容列中心 ≈33.5vw（1920 下左缘 x≈173、中心 x≈643）；max(0,…) 使窄窗口自动贴左、永不横向越界。
+     禁止改成 margin:auto 居中或固定 vw 左移；任何改动必须先通过 ?static=1&check=1 的 ALIGN 校验。 */
+  .wrap.focus{max-width:940px;margin-left:max(0rem, calc(33.5vw - 470px));margin-right:auto}
+  /* 无框条目：取代底框卡片——纵向堆叠（章头一行 + 下方窄列说明），行宽收在黄金区内 */
+  .flatlist{display:flex;flex-direction:column;gap:30px;max-width:640px}
+  .flatlist .fitem{display:block}
+  .fitem .fhead{font-size:clamp(19px,1.6vw,23px);font-weight:800;color:var(--cyan-strong);line-height:1.3}
+  .fitem .fhead .fsub{display:inline-block;font-size:clamp(12px,1vw,13.5px);font-weight:600;color:var(--faint);letter-spacing:.04em;margin-left:12px;vertical-align:baseline}
+  .fitem .ftext{font-size:clamp(15px,1.2vw,17.5px);color:var(--muted);line-height:1.75;margin-top:6px;max-width:36em}
+  .fitem .ftext b{color:#e9f1f9}
+  .fitem:nth-child(2) .fhead{color:var(--amber)}
+  .fitem:nth-child(3) .fhead{color:var(--rose)}
+  .fitem:nth-child(4) .fhead{color:var(--violet)}
+  .fitem:nth-child(5) .fhead{color:var(--green)}
+  /* 公式块：等宽字体、青色高亮、浅底 */
+  .formula{font-family:var(--mono);font-size:clamp(15px,1.15vw,17.5px);color:#a5e2fb;
+    background:rgba(94,203,247,.08);border:1px solid rgba(94,203,247,.22);border-radius:10px;
+    padding:10px 16px;margin-top:8px;display:inline-block;line-height:1.6}
+
+  .eyebrow{display:flex;align-items:center;gap:12px;margin-bottom:18px;
+    font-size:13.5px;letter-spacing:.2em;color:var(--cyan);font-weight:700}
+  .eyebrow .line{height:1px;width:44px;background:linear-gradient(90deg,var(--cyan),transparent)}
+  .slide h2{font-size:clamp(27px,3.4vw,42px);font-weight:800;line-height:1.28;letter-spacing:.005em}
+  .lead{color:var(--muted);margin-top:14px;font-size:clamp(17px,1.45vw,21px);max-width:900px}
+  .lead b{color:#fff}
+  p.body{color:#cfdbe8;font-size:clamp(16px,1.3vw,19px)}
+  p.body + p.body{margin-top:10px}
+
+  /* ================= 动画（进场） ================= */
+  .js .a{opacity:0;transform:translateY(30px);transition:opacity 1.05s var(--ease),transform 1.05s var(--ease);transition-delay:var(--d,0s)}
+  .js .a.fig-a{transform:translateY(34px) scale(.965)}
+  .js .slide.in .a{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){
+    .js .a{opacity:1;transform:none;transition:none}
+    .scroll-hint .wheel::after{animation:none}
+  }
+
+  /* ================= 卡片 ================= */
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g2x2{grid-template-columns:repeat(2,1fr)}
+  .card{
+    background:var(--card);border:1px solid var(--card-border);border-radius:20px;padding:24px 26px;
+    transition:transform .5s var(--ease),border-color .5s var(--ease),background .5s var(--ease);
+  }
+  .card:hover{transform:translateY(-4px);border-color:rgba(94,203,247,.42);background:rgba(94,203,247,.055)}
+  .card .icon{font-size:14.5px;font-weight:800;color:#07131f;width:42px;height:42px;border-radius:13px;
+    display:flex;align-items:center;justify-content:center;margin-bottom:15px}
+  .card h4{font-size:clamp(16.5px,1.35vw,19.5px);margin-bottom:8px;color:#fff}
+  .card p{font-size:clamp(14px,1.1vw,16px);color:var(--muted);line-height:1.72}
+  .card p b{color:#e9f1f9}
+  .i-cyan{background:linear-gradient(135deg,#5ecbf7,#2b8fc4)}
+  .i-amber{background:linear-gradient(135deg,#ffc06a,#e08a2e)}
+  .i-rose{background:linear-gradient(135deg,#f68ab4,#c74e7e)}
+  .i-violet{background:linear-gradient(135deg,#b3aef8,#746ee0)}
+  .i-green{background:linear-gradient(135deg,#6fe0ae,#35a878)}
+
+  /* ================= 图片（白底画框） ================= */
+  figure.shot{
+    background:#fdfdfd;border-radius:18px;overflow:hidden;margin:0 auto;
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 22px 60px rgba(0,0,0,.5);
+    display:flex;flex-direction:column;justify-content:center;
+  }
+  figure.shot img{display:block;max-width:100%;max-height:52vh;height:auto;margin:0 auto;flex:0 1 auto;min-height:0}
+  figure.shot figcaption{
+    padding:13px 22px;font-size:clamp(12.5px,1vw,14.5px);line-height:1.65;color:#33455e;
+    background:#eef2f7;border-top:1px solid #dbe3ed;
+  }
+  figure.shot figcaption b{color:#0e2138}
+
+  /* ================= 提示框 ================= */
+  .note{
+    border-left:3px solid var(--amber);background:rgba(255,192,106,.08);
+    border-radius:0 16px 16px 0;padding:18px 24px;font-size:clamp(15px,1.2vw,17.5px);color:#e6d4b4;
+  }
+  .note.cy{border-color:var(--cyan);background:rgba(94,203,247,.08);color:#c4e4f5}
+  .note.gr{border-color:var(--green);background:rgba(111,224,174,.08);color:#c2ecd8}
+  .note b{color:#fff}
+
+  /* ================= 时间线 ================= */
+  .timeline{display:flex;margin:26px 0 6px;position:relative}
+  .tl-item{flex:1;min-width:0;position:relative;padding:30px 20px 6px;text-align:center}
+  .tl-item::before{content:"";position:absolute;top:8px;left:50%;width:13px;height:13px;border-radius:50%;
+    background:var(--bg);border:3px solid var(--cyan);transform:translateX(-50%);z-index:1}
+  .tl-item::after{content:"";position:absolute;top:14px;left:calc(50% + 13px);right:calc(-50% + 13px);
+    height:2px;background:linear-gradient(90deg,rgba(94,203,247,.55),rgba(94,203,247,.15))}
+  .tl-item:last-child::after{display:none}
+  .tl-item .t{font-family:var(--mono);font-size:clamp(20px,1.9vw,27px);font-weight:800;color:var(--cyan)}
+  .tl-item .e{font-size:clamp(15px,1.2vw,17.5px);font-weight:700;margin-top:3px;color:#fff}
+  .tl-item .d{font-size:clamp(12.5px,1vw,14.5px);color:var(--muted);margin-top:3px}
+  .tl-item:nth-child(2)::before{border-color:var(--amber)}
+  .tl-item:nth-child(2) .t{color:var(--amber)}
+  .tl-item:nth-child(2)::after{background:linear-gradient(90deg,rgba(255,192,106,.55),rgba(255,192,106,.15))}
+  .tl-item:nth-child(3)::before{border-color:var(--rose)}
+  .tl-item:nth-child(3) .t{color:var(--rose)}
+  .tl-item:nth-child(3)::after{background:linear-gradient(90deg,rgba(246,138,180,.55),rgba(246,138,180,.15))}
+  .tl-item:nth-child(4)::before{border-color:var(--green)}
+  .tl-item:nth-child(4) .t{color:var(--green)}
+
+  /* ================= 表格 ================= */
+  .tbl-wrap{overflow:auto;border:1px solid var(--card-border);border-radius:18px}
+  table{width:100%;border-collapse:collapse;font-size:clamp(13.5px,1.05vw,15.5px)}
+  th{background:rgba(255,255,255,.06);color:var(--muted);font-weight:600;text-align:left;
+    padding:12px 20px;border-bottom:1px solid var(--card-border);white-space:nowrap}
+  td{padding:11px 20px;border-bottom:1px solid rgba(255,255,255,.055);color:#d7e1ec;vertical-align:top}
+  td.v{font-family:var(--mono);color:#a5e2fb;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tbody tr{transition:background .3s}
+  tbody tr:hover td{background:rgba(94,203,247,.045)}
+
+  /* ================= 步骤 ================= */
+  .steps{display:flex;gap:14px;align-items:stretch}
+  .step{flex:1;background:var(--card);border:1px solid var(--card-border);
+    border-radius:18px;padding:20px 22px}
+  .step .n{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.16em}
+  .step h5{font-size:clamp(16.5px,1.35vw,19px);margin:7px 0 7px;color:#fff}
+  .step p{font-size:clamp(13.5px,1.05vw,15.5px);color:var(--muted)}
+  .step-arrow{align-self:center;color:var(--faint);font-size:22px;flex:none}
+
+  /* ================= 词典 ================= */
+  .dict{display:grid;gap:20px;grid-template-columns:1fr}
+  .dict .item{background:transparent;border:1px solid transparent;border-radius:16px;padding:12px 22px;
+    display:grid;grid-template-columns:230px 1fr;gap:18px;align-items:baseline;
+    transition:border-color .4s var(--ease)}
+  .dict .item:hover{border-color:rgba(94,203,247,.35)}
+  .dict dt{font-weight:700;font-size:clamp(15px,1.2vw,17px);color:var(--cyan-strong)}
+  .dict dd{font-size:clamp(13.5px,1.05vw,15.5px);color:var(--muted);line-height:1.7}
+  .dict dd b{color:#e9f1f9}
+
+  /* ================= 来源 ================= */
+  .refs{margin-top:4px}
+  .refs li{margin:13px 0 13px 24px;color:#c4d0dd;font-size:clamp(14.5px,1.15vw,16.5px)}
+  .refs li::marker{color:var(--cyan);font-family:var(--mono)}
+  .refs code{white-space:normal;font-size:.82em}
+
+  /* ================= Hero ================= */
+  .hero{align-items:center;text-align:center;
+    background:
+      radial-gradient(ellipse 85% 60% at 50% -12%,rgba(94,203,247,.17),transparent 62%),
+      radial-gradient(ellipse 55% 42% at 82% 26%,rgba(255,192,106,.08),transparent 62%),
+      linear-gradient(180deg,#0d1526 0%,var(--bg) 100%);
+  }
+  .starfield{position:absolute;inset:0;pointer-events:none;opacity:.75}
+  .hero .wrap{display:flex;flex-direction:column;align-items:center}
+  .hero-kicker{font-size:13.5px;letter-spacing:.22em;color:var(--cyan);font-weight:700;
+    border:1px solid rgba(94,203,247,.4);border-radius:999px;padding:8px 20px;margin-bottom:30px;
+    background:rgba(94,203,247,.08)}
+  .hero h1{font-size:clamp(32px,4.6vw,56px);font-weight:800;line-height:1.24;letter-spacing:.005em}
+  .hero h1 .hl{background:linear-gradient(94deg,var(--cyan-strong),var(--amber));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p.sub{margin:24px auto 0;max-width:680px;color:var(--muted);font-size:clamp(16.5px,1.4vw,20px)}
+  .hero-stats{display:flex;justify-content:center;gap:16px;margin-top:46px;flex-wrap:wrap}
+  .stat{background:var(--card);border:1px solid var(--card-border);border-radius:18px;
+    padding:18px 30px;min-width:158px;backdrop-filter:blur(6px)}
+  .stat b{display:block;font-size:clamp(24px,2.2vw,31px);font-weight:800;font-family:var(--mono);color:var(--cyan-strong)}
+  .stat:nth-child(2) b{color:var(--amber)}
+  .stat:nth-child(3) b{color:var(--rose)}
+  .stat:nth-child(4) b{color:var(--green)}
+  .stat span{font-size:13px;color:var(--muted);letter-spacing:.08em}
+
+  /* 结语页 */
+  .finale{align-items:center;text-align:center;
+    background:radial-gradient(ellipse 80% 55% at 50% 110%,rgba(94,203,247,.14),transparent 60%)}
+  .finale .refs{list-style:none;text-align:left;display:inline-block}
+  .finale .refs li{margin-left:0}
+
+  .split{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
+  /* 图+文页：以图为主时保持整体居中；文字收拢在左侧列 */
+  .wrap.focus .split{grid-template-columns:1.22fr .78fr;gap:38px}
+  .wrap.focus .split h2{font-size:clamp(24px,2.5vw,32px);line-height:1.32}
+  .wrap.focus .split .lead{max-width:34em}
+  .wrap.focus .split .body{max-width:34em}
+
+  .figcap-line{margin-top:14px;font-size:clamp(12.5px,1vw,14.5px);color:var(--faint);line-height:1.65;text-align:left}
+  .figcap-line b{color:#c9d6e4}
+
+  /* 焦点版式下的卡片网格：2 列收拢、不再横向铺满 */
+  .wrap.focus .grid.g2x2{grid-template-columns:repeat(2,minmax(0,1fr));max-width:880px}
+  .wrap.focus .grid.g2{grid-template-columns:repeat(2,minmax(0,1fr));max-width:880px}
+  .wrap.focus .steps{max-width:880px}
+  .wrap.focus .note{max-width:34em}
+  .wrap.focus .tbl-wrap{max-width:880px}
+  .wrap.focus .dict{max-width:900px}
+  /* 焦点版式下卡片文字更紧凑（降低铺陈感） */
+  .wrap.focus .card{padding:20px 22px}
+  .wrap.focus .card p{font-size:clamp(13.5px,1.05vw,15.5px)}
+  /* 黄金区内的文字双列（s13 跟踪环/稳定环）：无底框无底色，仅用彩色标题区分 */
+  .wrap.focus .grid.flat{gap:14px 32px}
+  .wrap.focus .grid.flat .card{background:none;border:none;border-radius:0;padding:8px 4px 2px}
+  .wrap.focus .grid.flat .card:hover{transform:none;background:none;border-color:transparent}
+  .wrap.focus .grid.flat .card h4{font-size:clamp(17px,1.4vw,20px);margin-bottom:6px}
+  .wrap.focus .grid.flat .card:nth-child(1) h4{color:var(--cyan-strong)}
+  .wrap.focus .grid.flat .card:nth-child(2) h4{color:var(--amber)}
+  /* 全宽流程图：水平方向拉通整页（与 v1 排布一致），不做焦点收拢 */
+  .wrap.wide{max-width:1500px;margin-left:auto;margin-right:auto}
+  .wrap.wide .steps{max-width:none}
+  .wrap.wide .step p{font-size:clamp(13.5px,1.05vw,15.5px)}
+  .wrap.wide .step h5{font-size:clamp(16.5px,1.3vw,18.5px)}
+
+  /* 短屏兜底 */
+  @media (max-height:760px){
+    .slide{padding:64px 8vw 52px}
+    figure.shot img{max-height:46vh}
+    .hero-stats{margin-top:30px}
+    .stat{padding:14px 22px;min-width:140px}
+  }
+  /* 矮窗口兜底（Edge 100% 非全屏的常见视口高度 ≤~870px）：压缩垂直留白与条目间距，
+     保证"一页一屏"在矮窗口下同样成立（1920x940 / 1366x768 已入 ?check=1 例行验证） */
+  @media (max-height:1000px){
+    .slide{padding:56px 8.5vw 44px}
+    .flatlist{gap:22px}
+    .fitem .ftext{line-height:1.62;margin-top:4px}
+    .lead{margin-top:10px}
+    .formula{padding:8px 14px;margin-top:6px}
+  }
+  @media (max-height:820px){
+    .slide{padding:40px 8vw 30px}
+    .eyebrow{margin-bottom:10px}
+    .slide h2{font-size:clamp(23px,2.8vw,34px)}
+    .flatlist{gap:13px}
+    .fitem .fhead{font-size:clamp(17px,1.5vw,20px)}
+    .fitem .ftext{font-size:clamp(13.5px,1.05vw,15.5px)}
+    .note{padding:10px 16px}
+  }
+  /* 窄窗口：焦点版式退化为常规居中 */
+  @media (max-width:1100px){
+    .wrap.focus{margin-left:auto;margin-right:auto}
+  }
+
+  /* 静态截图模式（?static=1）：内容立即可见、无动画 */
+  html.static .a{opacity:1 !important;transform:none !important;transition:none !important}
+  html.static .scroll-hint{display:none}
+  /* 静态截图模式：禁用 scroll-snap 与平滑滚动，锚点定位完全由 JS 瞬时控制
+     （消除 re-snap / smooth 动画在无头虚拟时间下被截到中途帧的竞态） */
+  html.static .deck{scroll-snap-type:none;scroll-behavior:auto}
+</style>
+</head>
+<body data-page-node-id="GzpBra61S6SroUOiSjmpoD">
+
+<div id="progress" data-page-node-id="R5sp30okf6U8z6FRLehgoc"></div>
+
+<div class="topbar" data-page-node-id="d6KLQOoUaT3jNkstZlrVcL">
+  <div class="brand" data-page-node-id="FI99FFX1tsX6jQr985zHQv">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" data-page-node-id="TZ7IKHJgiLRMDFSfA6DeHC"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9L12 2Z" fill="#5ecbf7" data-page-node-id="ksD3acRKc11aLDCAXdfPSB"/></svg>
+    制导系统示例 · 逐页精读
+  </div>
+  <div class="part-label" id="partLabel" data-page-node-id="Uyl7MmPZ8mIfAIqZW2SCGQ">PART 00 · 开篇</div>
+</div>
+
+<div class="rail" id="rail" data-page-node-id="r15oZQjk575o0EwZ3l4np1"></div>
+<div class="counter" id="counter" data-page-node-id="flwEdYm0VcOCU0aslGTGvk"><b data-page-node-id="p327h8NLVmv4QKyGyQyPed">01</b> / 42</div>
+<div class="scroll-hint" id="scrollHint" data-page-node-id="1WEXTiB7bEZREdagzQ4xzx"><div class="wheel" data-page-node-id="KDnMid7TLyQX8IwGytbcDJ"></div>滚动 · 逐页阅读</div>
+
+<main class="deck" id="deck" data-page-node-id="bAw1LhA0u8xAEUcwHKejCp">
+
+<!-- ============ 01 HERO ============ -->
+<section class="slide hero" id="s01" data-part="PART 00 · 开篇" data-name="封面" data-page-node-id="EVaDXlqF0rpb89l1nbcqBz">
+  <canvas class="starfield" id="stars" data-page-node-id="mhjPJOb2P7axF6Wv6HcAfh"></canvas>
+  <div class="wrap" data-page-node-id="OHajFHoRall6hazPbmBgWQ">
+    <div class="hero-kicker a" style="--d:.05s" data-page-node-id="s4FM6FVCEboKeBrKoKmAuY">导弹制导与控制系统实训 · MathWorks 官方示例精读</div>
+    <h1 class="a" style="--d:.18s" data-page-node-id="PPtZXWw5GSvMktzGIV2sxp">在 MATLAB 与 Simulink 中<br data-page-node-id="INkUMmv8HksA05eGE5WE5B"><span class="hl" data-page-node-id="aY4mKNvmj62LsMQs0HEeDw">设计一套导弹制导系统</span></h1>
+    <p class="sub a" style="--d:.34s" data-page-node-id="l9uLpuilZNVorgGGQnYufP">一枚雷达寻的导弹，如何在 3.5 秒内完成「搜索 → 捕获 → 命中」？<br data-page-node-id="WGeArp5wJGzHVZBq7gNBDI">请向下滚动，我们一页一页地讲给你听。</p>
+    <div class="hero-stats" data-page-node-id="9JTVUNCvPaue4WXCgN7m3W">
+      <div class="stat a" style="--d:.5s" data-page-node-id="G3YioNtTbCeoydvnc0oTZp"><b data-page-node-id="ZyqPergwDS7gySHToSq0ph">Mach 2–4</b><span data-page-node-id="GuwJs5VhupInagStR3Nlq5">飞行速度区间</span></div>
+      <div class="stat a" style="--d:.62s" data-page-node-id="TmqfAgfJ8ly5fuwgKEDgMU"><b data-page-node-id="UL8osCcxT3iwlPcVhyvjP7">3–18 km</b><span data-page-node-id="O7WwdSaEKfLNbov8nq4NaE">作战高度范围</span></div>
+      <div class="stat a" style="--d:.74s" data-page-node-id="Ej8OFDgmreDz3xmzAlWsPH"><b data-page-node-id="ZH2LUC5kVr9uHZ4yrVNE3m">3.46 s</b><span data-page-node-id="h8qyi1z9PpigEEn098UJkB">命中目标用时</span></div>
+      <div class="stat a" style="--d:.86s" data-page-node-id="OcsicDZz6CfJgDTc20oxiE"><b data-page-node-id="0Lu9EWQcHEw02hCmBoCrGe">0.265 m</b><span data-page-node-id="0f1fI0vqWkziw8RmLCI0O5">脱靶量（最近距离）</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 这是什么 ============ -->
+<section class="slide" id="s02" data-part="PART 01 · 一眼看懂" data-name="这是什么" data-page-node-id="4XoM2KhZx9hqq42X2mP18D">
+  <div class="wrap focus" data-page-node-id="aXNY2OXlHxTl8ZnjYmLW9V">
+    <div class="eyebrow a" data-page-node-id="xgiPdZ9kFe8dBO2eFEvFbj"><span class="line" data-page-node-id="ASLQikeBwEhUU8PXxRH4Yc"></span>PART 01 · 一眼看懂</div>
+    <div class="split" data-page-node-id="H5Qb5gY00gHIGQDIADMF29">
+      <div data-page-node-id="9GsMcxLuW53zj53JIReiGM">
+        <h2 class="a" style="--d:.08s" data-page-node-id="lTS4CTtwFNA55xL9JyLtCx">这个示例，到底做了什么？</h2>
+        <p class="lead a" style="--d:.2s" data-page-node-id="cPKonafi7TTq6jYmrDzHNx">一句话：它<strong data-page-node-id="rA1lIGOC7N6IXb9TSX1YAG">在电脑里完整复现了一枚雷达制导导弹</strong>——从开机搜索目标、锁定目标，到最后命中目标的全过程。</p>
+        <p class="body a" style="--d:.32s" data-page-node-id="C9G7acE1QcCC3bnJ96VnIB">这不是一个玩具演示。弹体模型出自多篇控制领域经典论文，是学术界与工程界<b data-page-node-id="xy7gFquTAywDg4fI5iD1E8">反复使用的基准对象</b>；仿真结果里，导弹的脱靶量只有 <em data-page-node-id="lJWMNTvqBm8UZ5LPLlUWQw">0.265 米</em>。</p>
+      </div>
+      <figure class="shot a fig-a" style="--d:.3s;max-width:480px" data-page-node-id="s5uAy169LbopxeXkGdrNjU">
+        <img src="assets/xxguidance_missile.png" alt="导弹弹体示意图" style="max-height:38vh" data-page-node-id="2vKw5K9XtsHvx7iZCIVcKc">
+        <figcaption data-page-node-id="bz8UiyTJ05wcH8nxc1nCOV"><b data-page-node-id="70GzD3beMtSeIAA0WX7RrU">导弹弹体示意。</b>尾翼控制导弹（MathWorks 官方示例插图）。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 猎鹰比喻 ============ -->
+<section class="slide" id="s03" data-part="PART 01 · 一眼看懂" data-name="猎鹰比喻" data-page-node-id="PR4F7UBaXLXR5EfoXPhZoy">
+  <div class="wrap focus" data-page-node-id="qmVTH4ZBdT6Up9qbkZAt37">
+    <div class="eyebrow a" data-page-node-id="p2PxAbnCVwTxBc8NIfBiRM"><span class="line" data-page-node-id="H1qk8SXZADk2C9XBCN4dYI"></span>PART 01 · 一眼看懂</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="YHZH2aDcCRepw3cHxYrBnB">把它想象成一只捕猎的猎鹰</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="qpJjL2T7epVW1y7TZX0hqH">导弹的每个部分，都对应猎鹰身上的一个"器官"——</p>
+    <div class="flatlist" style="margin-top:34px" data-page-node-id="YKKrrsdmjv42jk70EIvCEh">
+      <div class="fitem a" style="--d:.28s" data-page-node-id="lj8LgXlXpZSEURggdsuRF6">
+        <div class="fhead" data-page-node-id="T7ctulas9odhtXh4bBKxsl">眼睛<span class="fsub" data-page-node-id="a6KsgkHpO8Xw4SrZ4wSC1V">导引头 Seeker</span></div>
+        <div class="ftext" data-page-node-id="EQVNpO19GlVTgy6bNm21RU">装在万向节上的雷达天线，始终盯着目标。关键不是"猎物在哪"，而是感知<b data-page-node-id="mxdS5hFCvdA8NSdOHYfdnN">"视线正在往哪个方向转"</b>。</div>
+      </div>
+      <div class="fitem a" style="--d:.4s" data-page-node-id="A2AJeIkeZswrFHkz3XsA7W">
+        <div class="fhead" data-page-node-id="OGFpwIETGyqagUkJ3H2THz">直觉<span class="fsub" data-page-node-id="AkzOo9jaWjBrK66UelnYvF">制导律 Guidance</span></div>
+        <div class="ftext" data-page-node-id="3LVjeGAvsSmQTvG8X9iYII">捕猎本能：让视线转动趋于停止，两头必然相撞。它把"怎么追"翻译成一句话——<em data-page-node-id="r6aXHfxwWoY7brH1kAgcXb">需要多大的横向加速度</em>。</div>
+      </div>
+      <div class="fitem a" style="--d:.52s" data-page-node-id="mQjXrKjKXbRtHEBS1mHtmI">
+        <div class="fhead" data-page-node-id="Xve8oTC2WryGcUYNRnuhJ8">脊髓<span class="fsub" data-page-node-id="sM8l1QiiLVzEEPtrEqE8JS">自动驾驶仪 Autopilot</span></div>
+        <div class="ftext" data-page-node-id="OnJFD1IWO2WJLtrF8Q5NrN">大脑说"往左使劲"，脊髓负责精确执行：控制舵面，让弹体转弯<b data-page-node-id="M65TqAc2BRDIVvAJBoU2G3">不欠火候、也不过头</b>。</div>
+      </div>
+      <div class="fitem a" style="--d:.64s" data-page-node-id="l11yCyXKlBSrBjY8GovMAL">
+        <div class="fhead" data-page-node-id="exTxn2IrjcdfdIKGESxeer">身体<span class="fsub" data-page-node-id="B6d4UejHetzGzzAXBFDGvc">弹体 Airframe</span></div>
+        <div class="ftext" data-page-node-id="Uel5OqPL37gYY5F4Fr3xMZ">翅膀与躯体。气动力、推力、重力共同决定它怎么飞，且随速度和姿态<b data-page-node-id="C4qDfWX8CJZHycyeaDefW8">非线性变化</b>。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 全景框图 ============ -->
+<section class="slide" id="s04" data-part="PART 02 · 系统全景" data-name="全景框图" data-page-node-id="aZZ14d4EXKbCIf2y3kRNX2">
+  <div class="wrap" data-page-node-id="a30FE72D1TSbKPGGArBlag">
+    <div class="eyebrow a" data-page-node-id="Trspzm7NdhwdHt9V7C5EEC"><span class="line" data-page-node-id="ANQHumiSOHXQWttSQGRo2n"></span>PART 02 · 系统全景</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="ToHhshALSMAio3mEKIoG7V">打开模型：一张"世界地图"</h2>
+    <figure class="shot a fig-a" style="--d:.22s;margin-top:22px" data-page-node-id="Pr5FPXeBE2VqI8JHJDdrpI">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_01.png" alt="Simulink 顶层模型框图" style="max-height:50vh" data-page-node-id="LmXsHXUNB0SFrHv7niDIHP">
+      <figcaption data-page-node-id="fbgTl2XvzP9uPSPUdAgKtf"><b data-page-node-id="V6amCzOT6s90Q5GlF42tpH">图 · 顶层模型「Missile Guidance System Example」。</b>
+      从左到右：目标位置 → 导引头/跟踪器 → 制导 → 弹体与自动驾驶仪 → 右侧动画显示块；
+      下方三条反馈线把导弹的位置、姿态、角速度送回导引头——这就是"闭环"。右下角 Miss Distance 显示块在仿真结束后给出脱靶量（本图为仿真前，显示"--"，数值见第 20 页）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 05 信号闭环 ============ -->
+<section class="slide" id="s05" data-part="PART 02 · 系统全景" data-name="信号闭环" data-page-node-id="C514G6qiNxYDMRKic0ARrG">
+  <div class="wrap wide" data-page-node-id="UPdzW6BgaH4fD9ZdUFHAFk">
+    <div class="eyebrow a" data-page-node-id="KKT4QBXvbyMA2xlLaR4LNR"><span class="line" data-page-node-id="e670gsEWbGt9uPFmUmd973"></span>PART 02 · 系统全景</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="mSkByz717ggb4xxLgsF9Be">信号怎么在回路里流动？</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="RFKWmlwtWaS7Y0EmAzUJk6">信号沿链条流动，而"弹体动了"又反过来改变导弹与目标的相对几何——形成闭环。</p>
+    <div class="a fig-a" style="--d:.3s;margin-top:22px" data-page-node-id="TBWvj6qxgMu3DSajfPY0M3">
+      <svg viewBox="0 0 960 300" style="width:100%;max-height:44vh;height:auto;display:block" role="img" aria-label="制导回路框图" data-page-node-id="DwrMz3EokBPuPyBBlevOjM">
+        <defs data-page-node-id="CMqYGtvzMk7cfMJySwbFiM">
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" data-page-node-id="BVA7pZleBZXfQM2ISqokuM">
+            <path d="M0 0L10 5L0 10z" fill="#5ecbf7" data-page-node-id="1XH8SsAH0HCG5UgZ3W5P9d"/>
+          </marker>
+          <marker id="arrm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" data-page-node-id="8R2ItIGNxg8TLxnRIqOBlF">
+            <path d="M0 0L10 5L0 10z" fill="#aebccd" data-page-node-id="OxdfshWZ9N9aMLYji3aXFb"/>
+          </marker>
+        </defs>
+        <rect x="28" y="46" width="158" height="66" rx="14" fill="rgba(94,203,247,.14)" stroke="#5ecbf7" stroke-width="1.6" data-page-node-id="OKkGvTLq2hpoyM8Nu5cC0M"/>
+        <text x="107" y="73" text-anchor="middle" fill="#eef3f9" font-size="16" font-weight="700" data-page-node-id="UjOr3kjzJP3oP2LsA9DsQv">导引头 / 跟踪器</text>
+        <text x="107" y="95" text-anchor="middle" fill="#aebccd" font-size="12.5" data-page-node-id="eyJ6FOozQVII9CwEyLi5hY">测量视线角速率 λ̇</text>
+        <rect x="222" y="46" width="158" height="66" rx="14" fill="rgba(255,192,106,.14)" stroke="#ffc06a" stroke-width="1.6" data-page-node-id="eNeJ0D9f68rP02kLCAnyfF"/>
+        <text x="301" y="73" text-anchor="middle" fill="#eef3f9" font-size="16" font-weight="700" data-page-node-id="WUlhOK8eoTgyuqP5Ld8UDl">制导律 Guidance</text>
+        <text x="301" y="95" text-anchor="middle" fill="#aebccd" font-size="12.5" data-page-node-id="hKVBW3SCcHKnCH53InZ3z3">比例导引 → 过载指令</text>
+        <rect x="416" y="46" width="158" height="66" rx="14" fill="rgba(246,138,180,.14)" stroke="#f68ab4" stroke-width="1.6" data-page-node-id="wXVrbkVVbW2D0bLPaFEMFh"/>
+        <text x="495" y="73" text-anchor="middle" fill="#eef3f9" font-size="16" font-weight="700" data-page-node-id="pECkn9PK9ji2XEWuquJBYO">自动驾驶仪</text>
+        <text x="495" y="95" text-anchor="middle" fill="#aebccd" font-size="12.5" data-page-node-id="zG5EY9UHQoZeUNspS9Q5iI">三环路 · 增益调度</text>
+        <rect x="610" y="46" width="158" height="66" rx="14" fill="rgba(246,138,180,.14)" stroke="#f68ab4" stroke-width="1.6" data-page-node-id="sduhTbfavUTa1mvfBRj1DP"/>
+        <text x="689" y="73" text-anchor="middle" fill="#eef3f9" font-size="16" font-weight="700" data-page-node-id="RzFRe40BLLDP3Eowjy6Lt0">舵机 Fin Actuator</text>
+        <text x="689" y="95" text-anchor="middle" fill="#aebccd" font-size="12.5" data-page-node-id="g0TICz7f0jusYC3OgqaeOF">舵偏 ±30° 限幅</text>
+        <rect x="804" y="46" width="128" height="66" rx="14" fill="rgba(179,174,248,.14)" stroke="#b3aef8" stroke-width="1.6" data-page-node-id="edHmqhPxAnUoYrjFnJE5lZ"/>
+        <text x="868" y="73" text-anchor="middle" fill="#eef3f9" font-size="16" font-weight="700" data-page-node-id="CCdz4qVNDmNaOSC8tofP1j">弹体动力学</text>
+        <text x="868" y="95" text-anchor="middle" fill="#aebccd" font-size="12.5" data-page-node-id="tAudOsz15u3PSDtoViAli5">气动力 + 运动方程</text>
+        <line x1="186" y1="79" x2="216" y2="79" stroke="#5ecbf7" stroke-width="2" marker-end="url(#arr)" data-page-node-id="F1iLuBgihw2LQaLVMvyDb8"/>
+        <line x1="380" y1="79" x2="410" y2="79" stroke="#ffc06a" stroke-width="2" marker-end="url(#arr)" data-page-node-id="p59f1PUWIRfuHeCM9NoRxx"/>
+        <line x1="574" y1="79" x2="604" y2="79" stroke="#f68ab4" stroke-width="2" marker-end="url(#arr)" data-page-node-id="iHa8cjpuWWuQa4VB4Fy2q3"/>
+        <line x1="768" y1="79" x2="798" y2="79" stroke="#f68ab4" stroke-width="2" marker-end="url(#arr)" data-page-node-id="fJQgttGXwVEXqIvihH3b6q"/>
+        <path d="M868 112 L868 210 L107 210 L107 118" fill="none" stroke="#aebccd" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrm)" data-page-node-id="WRtAx6BsCbwZ0Ari9NHNJJ"/>
+        <rect x="330" y="192" width="300" height="36" rx="10" fill="#101b2e" stroke="rgba(255,255,255,.12)" data-page-node-id="raZTmDhqm62UUdaWdi6YQi"/>
+        <text x="480" y="215" text-anchor="middle" fill="#cfdbe8" font-size="13.5" data-page-node-id="vftbfvvEFiVoMaeIRV9JjI">弹体运动改变导弹—目标相对几何（视线）</text>
+        <g font-size="12.5" fill="#aebccd" data-page-node-id="iUedtFdbarGGEC40z9MY7L">
+          <rect x="120" y="252" width="12" height="12" rx="3" fill="rgba(94,203,247,.4)" stroke="#5ecbf7" data-page-node-id="cKLVAOGo0GZwIDvueF2VW4"/><text x="140" y="263" data-page-node-id="YM2BuMba4WjJ6qVloDPxuB">感知</text>
+          <rect x="205" y="252" width="12" height="12" rx="3" fill="rgba(255,192,106,.4)" stroke="#ffc06a" data-page-node-id="O7Xrq0v23qE8AvPD3HvLYx"/><text x="225" y="263" data-page-node-id="aFdEZZZ5HtpWr4KtFOxqN1">决策</text>
+          <rect x="290" y="252" width="12" height="12" rx="3" fill="rgba(246,138,180,.4)" stroke="#f68ab4" data-page-node-id="4zsVQ3zZcVANzDWd83oEoT"/><text x="310" y="263" data-page-node-id="HYPAhyCj83I1QfEC0oV0Qf">执行</text>
+          <rect x="375" y="252" width="12" height="12" rx="3" fill="rgba(179,174,248,.4)" stroke="#b3aef8" data-page-node-id="BVNi8B6gU8aIwbrbIHmMQD"/><text x="395" y="263" data-page-node-id="BJS4CTZizrA0Znq9KaHIZ9">被控对象</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+<!-- ============ 06 初始设定 ============ -->
+<section class="slide" id="s06" data-part="PART 02 · 系统全景" data-name="初始设定" data-page-node-id="4Ag6N7lEK5SpAtAGZgMk08">
+  <div class="wrap focus" data-page-node-id="NwFKBD4U89Lwx8CqoWsFtu">
+    <div class="eyebrow a" data-page-node-id="NMs1Ocr3T8jIS0L4D79GuM"><span class="line" data-page-node-id="M42mqvgsnc6IAId9pkyPM9"></span>PART 02 · 系统全景</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="9qlr45O2NbdqrME7Q59WyZ">这场"追猎"的初始设定</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="zkZd0djAotw355aThXENum">故事开始前，双方各就各位——</p>
+    <div class="flatlist" style="margin-top:34px" data-page-node-id="1HTWOCS8FxhPOqyzf7GrEE">
+      <div class="fitem a" style="--d:.3s" data-page-node-id="qNUoYN44Iq5w22BMcMbRXc">
+        <div class="fhead" data-page-node-id="AZoZJ9lAr5nFFpBj2XFYDP">导弹<span class="fsub" data-page-node-id="skxUvY5s7upb2bgcaEs4LE">出发状态</span></div>
+        <div class="ftext" data-page-node-id="qsSJrM8t0Axkkb67na29aP">从 10 000 英尺（约 3 048 m）高度、以 <b data-page-node-id="j8s7WUGrHbLFZ0D7ztPRFu">3 倍声速（984 m/s）</b>平飞出发；发动机提供 <b data-page-node-id="xLPSOd5L0Xwbg9ObslGAFP">10 kN</b> 恒定推力；最大可用过载 <b data-page-node-id="ZFakqYQAGYAMmvWwzRaLI2">40 g</b>。</div>
+      </div>
+      <div class="fitem a" style="--d:.44s" data-page-node-id="RFC7QD7kdhHh4f9ixYotOS">
+        <div class="fhead" data-page-node-id="zHQF6dIdPkSCI1BxYGIiOL">目标<span class="fsub" data-page-node-id="CqBf1DFLGaeVBA1lI27nDn">迎面而来</span></div>
+        <div class="ftext" data-page-node-id="03gzVtVn4x56ZhFg6DSquz">位于导弹前方 4 500 m、<em data-page-node-id="Xs5jK8LzHV1ro72uTvSz4M">上方 500 m</em> 处，以 <b data-page-node-id="015gZr2SYLGDCwOuY8XBrl">328 m/s</b> 恒速<b data-page-node-id="wzzlB5IoUaKcM0opOBxeFi">迎面飞来</b>——导弹必须向上拐一个弯，才能咬住它。</div>
+      </div>
+    </div>
+    <div class="note cy a" style="--d:.58s;margin-top:30px" data-page-node-id="vLbyhdytsGlWw0ws8OwgTz"><b data-page-node-id="qoGuVIt7B4EzPQzkElGkIk">接下来</b>，我们沿信号流的方向，把每个子系统打开看个明白。</div>
+  </div>
+</section>
+
+<!-- ============ 07 弹体主干 ============ -->
+<section class="slide" id="s07" data-part="PART 03 · 深入子系统" data-name="弹体主干" data-page-node-id="xITNUWGbXcftmHlDOeWQfO">
+  <div class="wrap" data-page-node-id="XjqXiatYiNBf5h1CwO6Rpp">
+    <div class="eyebrow a" data-page-node-id="HLCTK9wJUwKNUFkHPentL8"><span class="line" data-page-node-id="9iHRHqolXNuW1wx3mvMJHd"></span>PART 03 · 深入子系统 · 1/10</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="OKUrarynE043vwPvEb6Puv">弹体与自动驾驶仪：模型的主干</h2>
+    <figure class="shot a fig-a" style="--d:.22s;margin-top:22px" data-page-node-id="o50nNvAzhdVGdOOYChGQX0">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_02.png" alt="弹体与自动驾驶仪子系统" style="max-height:46vh" data-page-node-id="aB36DMPxRNeu8WMLkyLgkw">
+      <figcaption data-page-node-id="2a6IuVk8cnjVHpECAf0vAN"><b data-page-node-id="yGwe9jFG3sukMeLcDmK4UJ">图 · Airframe &amp; Autopilot 子系统。</b>
+      左侧黄色块为「大气与迎角/空速计算」，中部「自动驾驶仪」接收过载指令 A<sub data-page-node-id="FWOUxYX8b7OiHUBiQPsOf2">z</sub>_d，经「舵机」驱动右侧的「气动力与运动方程」；
+      右下角「传感器」把角速度和过载反馈回自动驾驶仪——这是内环（姿态/过载控制回路）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 08 大气模型 ============ -->
+<section class="slide" id="s08" data-part="PART 03 · 深入子系统" data-name="大气模型" data-page-node-id="ZFTPEkyaLqDDtnz8K9qzlw">
+  <div class="wrap focus" data-page-node-id="eiwwVUPverAvpJGABCXRQT">
+    <div class="eyebrow a" data-page-node-id="rncXvX4RDxbggpwobfNaTs"><span class="line" data-page-node-id="zM5EaNCtVR3rqX7oR77Y2I"></span>PART 03 · 深入子系统 · 2/10</div>
+    <div class="split" data-page-node-id="PkqSlPe9uSJAdiPbfXYZmX">
+      <div data-page-node-id="UwL3IjBHc0VZ4MJC19gxJM">
+        <h2 class="a" style="--d:.08s" data-page-node-id="2MiTH0QZihmlnYCD9CVozX">国际标准大气：<br data-page-node-id="AxV9nJC0pQy8F9NwCP2iBJ">一切计算的起点</h2>
+        <p class="lead a" style="--d:.2s" data-page-node-id="eJ4EqbhkTHMrUIpov2dDZv">空气密度、温度、声速都随高度变化，直接决定气动力大小。模型实现了<b data-page-node-id="6g9IOoAA6UEngYC3PIzXWX">国际标准大气（ISA）</b>的两段式近似：</p>
+        <p class="body a" style="--d:.32s" data-page-node-id="7Xv9RXkljNGtTkESuf9uwy"><span class="kw" data-page-node-id="sDwjUXoBnidBmWRaU2sya3">对流层（0–11 km）</span>温度随高度线性下降，每升高 1 km 约降 6.5 ℃；<span class="kw" data-page-node-id="Vhwegq9uIRAay3Kl22SreZ">平流层下部（11–20 km）</span>温度恒定（约 −56.5 ℃），空气继续变稀薄。</p>
+      </div>
+      <figure class="shot a fig-a" style="--d:.3s;max-width:470px" data-page-node-id="S6exvlPlSA5guHB1r1tjoD">
+        <img src="assets/xxguidance_airden.png" alt="国际标准大气模型" style="max-height:44vh" data-page-node-id="A1kUCKKU38jKK5AO5sCGjd">
+        <figcaption data-page-node-id="a9cv7NuEw7uJYwME7rOPUF"><b data-page-node-id="RdDdUMzxvI9L8UrhB1H9ao">图 · 国际标准大气（ISA）模型。</b>对流层线性降温、平流层恒温（MathWorks 官方示例插图）。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 气动力核心 ============ -->
+<section class="slide" id="s09" data-part="PART 03 · 深入子系统" data-name="气动力核心" data-page-node-id="KkpziSwwGhVZq1yZf8vM6E">
+  <div class="wrap" data-page-node-id="13ec1mTsUBcwSFveim2qTb">
+    <div class="eyebrow a" data-page-node-id="sCtrcdPEPf1PFhNpqBLNcc"><span class="line" data-page-node-id="VKkkBQiDmIQ9JviyqlMD8r"></span>PART 03 · 深入子系统 · 3/10</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="ZCEnEvkG3TfrNuXYf0RCxt">气动力与运动方程：导弹的"物理引擎"</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="EJGF3myvl6WnSyhIzNV5Fh">根据当前的马赫数、迎角和舵偏查出气动力系数，算出<b data-page-node-id="XJRpUW010MN4xlbbnLVSvw">轴向力、法向力和俯仰力矩</b>，再积分运动方程，得到位置、速度与姿态。</p>
+    <figure class="shot a fig-a" style="--d:.3s;margin-top:22px" data-page-node-id="0YehLeukQB661NGGquIO6K">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_03.png" alt="气动力学与运动方程子系统" style="max-height:44vh" data-page-node-id="0kz2KaOObtYoVfz8Bdsx5i">
+      <figcaption data-page-node-id="YesBnM8ACKuWcPAjZwG6Ke"><b data-page-node-id="uzWkuN578y9PU4gzhJGVvR">图 · Aerodynamics &amp; Equations of Motion 子系统。</b>
+      左侧「Aerodynamics」按 Mach、Alpha、Q、Fin 查表输出三分量（F<sub data-page-node-id="z4Q0gYCighyXaeDnMGUaxS">x</sub>、F<sub data-page-node-id="Sk4H40qNzHsfh3vfOAodx9">z</sub>、M）；右侧「3dof (Body Axes)」对刚体运动方程积分。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 10 查表插值 ============ -->
+<section class="slide" id="s10" data-part="PART 03 · 深入子系统" data-name="查表插值" data-page-node-id="E6UaY9cOpBij0uXVPMecG6">
+  <div class="wrap focus" data-page-node-id="BTGufkHDudLWjV16fDORC3">
+    <div class="eyebrow a" data-page-node-id="IZRbnCqEOioHFAmHoKI17D"><span class="line" data-page-node-id="dP7ZBcj54j6MizPQwO9UDX"></span>PART 03 · 深入子系统 · 4/10</div>
+    <div class="split" data-page-node-id="1bjI8Tsj1uYToOaverHYwr">
+      <div data-page-node-id="jZrwGdhtDdxxVQXGDYiPM0">
+        <h2 class="a" style="--d:.08s" data-page-node-id="dqp8oaeU7IHjLHtFkCaODV">非线性怎么办？<br data-page-node-id="6jY0w0Zf4JQpIfgRGQpGuL">查表 + 插值</h2>
+        <p class="lead a" style="--d:.2s" data-page-node-id="HvqiDVjnmZdvK1C2qeWvDs">气动力系数并非常数，而是以<b data-page-node-id="4EDfpNUxyJDz1VpUIbkHAk">二维数据表</b>存储：横轴马赫数（2 → 4，步长 0.5），纵轴迎角（−20° → +20°，步长 1°）。</p>
+        <p class="body a" style="--d:.32s" data-page-node-id="9IZ94wABCpMke7Bo1SVXVd">仿真运行到任一状态，就用 <code data-page-node-id="CrHG1gtUaZbQgd2rwzdyce">2-D Lookup Table</code> 模块实时<b data-page-node-id="B8m3n5HQbrCzuI3aXWLOLw">插值</b>出当前系数——这是处理非线性气动特性的<em data-page-node-id="reRqshsiaa59Dvy9AlK1jT">标准工程手段</em>。</p>
+      </div>
+      <figure class="shot a fig-a" style="--d:.3s;max-width:460px" data-page-node-id="j24gIq6JFhCzpRxb744y3X">
+        <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_04.png" alt="二维查找表插值" style="max-height:40vh" data-page-node-id="9PE4AulNaVl7RqVSwCRh1s">
+        <figcaption data-page-node-id="dAbtgfisSWAIU05lgdjFCb"><b data-page-node-id="c1qQxAFcBXksN0uFWxvreA">图 · 二维查找表插值。</b>迎角与马赫数共同决定轴向力系数 C<sub data-page-node-id="KiXlRYMqsgfCheh5orf7Ot">x</sub>、法向力系数 C<sub data-page-node-id="eoMAk3bMGjy5sAt3oCIP6C">z</sub> 与俯仰力矩系数 C<sub data-page-node-id="mzUXG04nCLrYktAGDcmrpN">m</sub>。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11 自动驾驶仪 ============ -->
+<section class="slide" id="s11" data-part="PART 03 · 深入子系统" data-name="三环路自动驾驶仪" data-page-node-id="OlkH3ttu4Uc6f4GFlyljre">
+  <div class="wrap wide" data-page-node-id="Di0EzpAt6SY4UFRWbtZDvM">
+    <div class="eyebrow a" data-page-node-id="ozfAtpG19PtG4qe9MTh0Pv"><span class="line" data-page-node-id="ehFdrPTZ5UIs61W841lyyD"></span>PART 03 · 深入子系统 · 5/10</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="8Y84BCGHLTzawnC0MHzf3l">三环路自动驾驶仪：让弹体"听话"</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="1nfIylOh6w4VXMvbzAUBkn">任务：接收制导律下发的<em data-page-node-id="zYs4UigivCk98N5cHmndIF">法向过载指令</em>，并精确实现它。三个环路层层递进：</p>
+    <div class="steps" style="margin-top:26px" data-page-node-id="zCHpP0damwEkHB6avZZVJP">
+      <div class="step a" style="--d:.3s" data-page-node-id="fVagGonrcJdMPlJSjVAsng">
+        <div class="n" data-page-node-id="F3DcJ29m1ShUtNKDkrg3kt">LOOP 1</div>
+        <h5 data-page-node-id="vLgqsYPt2tWFuq6KduhCtQ">舵偏内环</h5>
+        <p data-page-node-id="IC8XjHROaqHYzURgKx9sYJ">保证舵面快速、准确偏转。</p>
+      </div>
+      <div class="step-arrow a" style="--d:.4s" data-page-node-id="wMrnE6IhRkUWYwOVwIkveK">→</div>
+      <div class="step a" style="--d:.44s" data-page-node-id="OF62XpBXkbS0yeofu9YyDf">
+        <div class="n" data-page-node-id="5wWzt8YGSR4ihDBEEGDxBe">LOOP 2</div>
+        <h5 data-page-node-id="9VJFZFRlBS8l3sSL3nvGbW">阻尼环</h5>
+        <p data-page-node-id="Zy6Md2O6iO6GuSNGM2bCoR">速率陀螺反馈角速度，增阻尼、抑振荡。</p>
+      </div>
+      <div class="step-arrow a" style="--d:.54s" data-page-node-id="ENIuGCIgt5sNWqiIOZk0CW">→</div>
+      <div class="step a" style="--d:.58s" data-page-node-id="6UOEp9l8AT5OvBQubbwobN">
+        <div class="n" data-page-node-id="OtLERJcqyEZHeezwyfQ8Kg">LOOP 3</div>
+        <h5 data-page-node-id="YyhEtAUuF0lIVQ8J5qaXcA">过载外环</h5>
+        <p data-page-node-id="558JyO7GkVBZEyQXdBwGtR">加速度计测实际过载，消除静差。</p>
+      </div>
+    </div>
+    <p class="body a" style="--d:.7s;margin-top:22px" data-page-node-id="ORL3LrKL5sBxEjZZJjZpui">从 2 马赫到 4 马赫，弹体响应特性变化剧烈——一套固定参数不可能全程适用。解决办法是<span class="kw" data-page-node-id="HwchQaBD34WmSka24OonCj">增益调度</span>：增益存入查找表，飞行中按<b data-page-node-id="NdPBuzC9v7UIebsw3LZosl">迎角 × 马赫数</b>实时切换，并配合<em data-page-node-id="AMBYTYIKsyjupTKWfezWbm">抗积分饱和</em>防止舵面限幅时积分器"憋坏"。</p>
+  </div>
+</section>
+
+<!-- ============ 12 频响 ============ -->
+<section class="slide" id="s12" data-part="PART 03 · 深入子系统" data-name="频响侦察" data-page-node-id="5r0sDVJhhD9cgsfAHHleVK">
+  <div class="wrap focus" data-page-node-id="OUmUmLAy0SZ9KWQbzVIBDO">
+    <div class="eyebrow a" data-page-node-id="dpnr1ukDZZTaLxcuHGFI2v"><span class="line" data-page-node-id="BBQL8Lq8txZGgOfozYA5kf"></span>PART 03 · 深入子系统 · 6/10</div>
+    <div class="split" data-page-node-id="zSL7mCKMk1uyDLloJu7bPn">
+      <div data-page-node-id="AljFNEGps25wauoinF4jd6">
+        <h2 class="a" style="--d:.08s" data-page-node-id="5mma3hGxORvgmfTMAW5XvC">设计之前，先"侦察"弹体</h2>
+        <p class="lead a" style="--d:.2s" data-page-node-id="K4V26bWA36yXeEG9fUXVKs">经典控制设计的第一步：在多个配平飞行条件下把非线性模型<b data-page-node-id="YCdFpp4tF16YnA3NzFDeyP">线性化</b>，得到一组线性模型，分析其开环频率特性。</p>
+        <p class="body a" style="--d:.32s" data-page-node-id="GK9VDF0XycXLeJGKgshduT">MATLAB 可自动完成配平与线性化，再用 <span class="kw" data-page-node-id="3AR0ucMFH6Goc3VOgC3anJ">Control System Toolbox</span> 可视化弹体的频率响应——设计增益前先看清"脾气"。</p>
+      </div>
+      <figure class="shot a fig-a" style="--d:.3s;max-width:480px" data-page-node-id="lJsAuBcYOLDFdLpwKMw8vn">
+        <img src="assets/xxguidance_ltiviewe.png" alt="弹体频率响应" style="max-height:44vh" data-page-node-id="rm0EbrCB3WFIJywr3oGo2K">
+        <figcaption data-page-node-id="eJROLVU4rdzPizzYUEEpq8"><b data-page-node-id="6AJhAexgXk3Emrje2yUErc">图 · 弹体俯仰动态的频率响应（LTI Viewer）。</b>经典控制设计的"侦察"步骤。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 13 导引头 ============ -->
+<section class="slide" id="s13" data-part="PART 03 · 深入子系统" data-name="导引头" data-page-node-id="4MBrxhGDg3FTKVzk0jWzKD">
+  <div class="wrap focus" data-page-node-id="3ktwWvZIEmXFGJWJIj6LPz">
+    <div class="eyebrow a" data-page-node-id="6E4uQSL0Sigs4ykVKBW5M4"><span class="line" data-page-node-id="jvcCmNQi37PkpjpRx2r1zN"></span>PART 03 · 深入子系统 · 7/10</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="Puy48KXQytjhOtj2PN67FN">导引头：导弹的"眼睛"与"前庭"</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="hIToB5rryLt2hCwVHE298F">既要盯住目标（驱动万向节天线），又要给出<em data-page-node-id="L11oBbXaH0FSUwhzjr8l5l">视线角速率</em>估计。内部两个回路协同：</p>
+    <div class="grid g2 flat" style="margin-top:18px" data-page-node-id="w0EvI64o4QUBeMC8DU0Ttk">
+      <div class="card a" style="--d:.28s" data-page-node-id="dvat77zyIBdLyE6Gg0uBbP">
+        <h4 data-page-node-id="CNzCxnoC4eEGHNC60r5VDS">跟踪环 Tracking Loop</h4>
+        <p data-page-node-id="JQ3Y7uaxqhBq77HO26Z5Ki">让天线始终对准目标。时间常数 <code data-page-node-id="mIvU62ydmLqkGfSSDMJflX">tors = 0.05 s</code>——快了噪声大、慢了跟不上，典型的工程折中。</p>
+      </div>
+      <div class="card a" style="--d:.4s" data-page-node-id="PKwjimvXB30MXPwTwFQyCb">
+        <h4 data-page-node-id="HDUoKroKEk2tA39Ug6o1yn">稳定环 Stabilization Loop</h4>
+        <p data-page-node-id="WlpuTF0Ql4k7FzZrTdlhAR">弹体自己在颠簸，稳定环用速率陀螺<b data-page-node-id="QUkHnBVgJi5TjmDiEaPRVE">抵消弹体转动的影响</b>，让"视线"稳稳指向目标。</p>
+      </div>
+    </div>
+    <figure class="shot a fig-a" style="--d:.5s;margin-top:18px" data-page-node-id="7FVhjUnFnnaFL2GHGyohIt">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_07.png" alt="导引头跟踪器内部结构" style="max-height:38vh" data-page-node-id="kqy3I03eNVsWWeyiwQcQeC">
+      <figcaption data-page-node-id="R80OCM7pWtO0iYdppoWA3D"><b data-page-node-id="UM5G4b4EAhDtc298VcrwRP">图 · Tracker and Sightline Rate Estimator。</b>上半为跟踪环（含天线罩像差增益 K<sub data-page-node-id="HlGjDudLpFduTvSn5t1qIZ">r</sub>），下半为稳定环，右侧估计滤波器输出视线角速率（带宽 7 rad/s，约为自动驾驶仪带宽之半）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 14 状态机 ============ -->
+<section class="slide" id="s14" data-part="PART 03 · 深入子系统" data-name="任务状态机" data-page-node-id="NLZ5jW3vpz1LCwgMmDDqVT">
+  <div class="wrap wide" data-page-node-id="B5vmtQbVLtq1StwKmdmUnE">
+    <div class="eyebrow a" data-page-node-id="cYS7WffQgyNr5RhddzVXTD"><span class="line" data-page-node-id="l0jPgf4mkIqL5RyrwNUqSK"></span>PART 03 · 深入子系统 · 8/10</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="r4cLUbZI59BZuSlLCpt9ML">Stateflow 状态机：作战指挥官</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="fuyxxnGldbEbqI4XNzL1uk">什么时候搜索、什么时候攻击？<code data-page-node-id="fBrT3HiXISEl62XeQzJGmk">Guidance</code> 子系统内嵌的 Stateflow 状态机，<br data-page-node-id="jfUsU4eDpIuTuEgarzbdL8">管理着三个作战阶段：</p>
+    <div class="steps" style="margin-top:26px" data-page-node-id="vnpnVjeyyPnW3BYyNq2khu">
+      <div class="step a" style="--d:.3s" data-page-node-id="oNpsxCdDUTA59FtQzN7HFw">
+        <div class="n" data-page-node-id="yR36fAI06sqwsh9vqP3TS1">STAGE 1</div>
+        <h5 data-page-node-id="tyBZqxiBfjluChiNpNeezi">搜索 Target_Search</h5>
+        <p data-page-node-id="xRK0jVkp6ZB6on4QFknRqu">状态机直接控制万向节按预设规律摆动，在空域中扫描目标。</p>
+      </div>
+      <div class="step-arrow a" style="--d:.4s" data-page-node-id="trckVRNr8oJVXBAsU2qOge">→</div>
+      <div class="step a" style="--d:.44s" data-page-node-id="PxtmQG0P5vO28LkIoQWPm6">
+        <div class="n" data-page-node-id="HhfTDv6kg12XxpnfNoAx9V">STAGE 2</div>
+        <h5 data-page-node-id="fIgkYSxHBn76cncx4QOKQC">捕获 Acquire</h5>
+        <p data-page-node-id="L6CuwuhlUkdTrutcaUMuTq">目标进入 10° 雷达波束内，标记"已捕获"，短暂延迟确认。</p>
+      </div>
+      <div class="step-arrow a" style="--d:.54s" data-page-node-id="IBdpU1FUcs1XLGiPtZQgUZ">→</div>
+      <div class="step a" style="--d:.58s" data-page-node-id="Zu8TnMP7W8EtGXw7zP7t4b">
+        <div class="n" data-page-node-id="94kES4HWHBpWV1wgJgOcKa">STAGE 3</div>
+        <h5 data-page-node-id="lhU0PJw9R9VQqT5nIo6N0e">闭环制导 Guided</h5>
+        <p data-page-node-id="BP3ER9GH1Ki0l5udNs2DXN">比例导引接管控制权，导弹直奔预测交会点。</p>
+      </div>
+    </div>
+    <p class="body a" style="--d:.7s;margin-top:22px" data-page-node-id="JmIeTfDorm8L2sBKc8eUyF">模式切换由 Simulink 事件或图内部事件触发；状态机还定义了<em data-page-node-id="UBqVPDQKhVkFQVwFScZnpQ">丢失锁定</em>、<em data-page-node-id="MGpvfsFtsY6bYiV2hHja6G">未捕获到目标</em>等异常情形的降级逻辑。</p>
+  </div>
+</section>
+
+<!-- ============ 15 Stateflow 图 ============ -->
+<section class="slide" id="s15" data-part="PART 03 · 深入子系统" data-name="Stateflow 状态图" data-page-node-id="bXD1nPkS0eceqs6f9Yvi7Z">
+  <div class="wrap focus" data-page-node-id="EQBfm3EbkH5iSap82lVisf">
+    <div class="eyebrow a" data-page-node-id="gnTFP7kGb89rS34uVzZIGE"><span class="line" data-page-node-id="wamdlwBrGnw9bhoaZH6MFa"></span>PART 03 · 深入子系统 · 9/10</div>
+    <div class="split" data-page-node-id="Bnw9Vqj3szVzT6gilzj0fp">
+      <div data-page-node-id="89TSE2wAEexDKF28oGeec0">
+        <h2 class="a" style="--d:.08s" data-page-node-id="OPWIiAuiGKrQqDJMuBEgpf">一张图看懂全部作战模式</h2>
+        <p class="lead a" style="--d:.2s" data-page-node-id="bQk1I5PxyecQDh6Jy42ORg">上半部分是<b data-page-node-id="Qc7D10OylTEbWJImtlSgLe">制导状态</b>：Target_Search（搜索）、Target_Look（凝视）、Guided（闭环制导），以及 Abort 中止与丢失锁定后的降级路径。</p>
+        <p class="body a" style="--d:.32s" data-page-node-id="98SURxVlws0rGbHyVHiMl6">下半部分是<b data-page-node-id="A67wXcvTs7vVnwxrPbgIcK">引信状态机</b>：Inert 待机 ⇄ Armed 解锁——战斗部只有在闭环制导真正启动后才解除保险，这是真实导弹的安全设计。</p>
+      </div>
+      <figure class="shot a fig-a" style="--d:.3s;max-width:420px" data-page-node-id="RmRhpHG8BZWf9gsSExGHQL">
+        <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_06.png" alt="Stateflow 状态机" style="max-height:52vh" data-page-node-id="ZSx9dJZlRYC1jCcGcuZVHT">
+        <figcaption data-page-node-id="XHy94OwrmVqWSiFZaziDFP"><b data-page-node-id="pBj3lRLfNCDFSoL6ekEmE6">图 · Guidance 子系统中的 Stateflow 状态机。</b>制导状态（上）与引信状态（下）。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 16 天线罩像差 ============ -->
+<section class="slide" id="s16" data-part="PART 03 · 深入子系统" data-name="天线罩像差" data-page-node-id="HNwPrbkqYxkgPXcY9l8UPf">
+  <div class="wrap focus" data-page-node-id="rqCv6DzPJazKx4jEMvUASc">
+    <div class="eyebrow a" data-page-node-id="EfFUDOGEu7Pls6matm8gU6"><span class="line" data-page-node-id="g578AQRBZJjroB8Y1GaORA"></span>PART 03 · 深入子系统 · 10/10</div>
+    <div class="split" data-page-node-id="brrxJPR21Sn7uJNGc1I5RK">
+      <div data-page-node-id="ce607Qx6oDuW3y14qxogFF">
+        <h2 class="a" style="--d:.08s" data-page-node-id="P1KrMAORCKfA2FhQ90KKaN">真实世界的"不完美"：<br data-page-node-id="w4aKhnNQtmbZlh3wRIuy1B">天线罩像差</h2>
+        <p class="lead a" style="--d:.2s" data-page-node-id="ynC2oE57QUGR4HTWY0LAXm">雷达天线罩会<b data-page-node-id="0a4PRKWFUVVnSJAbHc2v4Z">折射</b>回波信号，让导引头读出一个略有偏差的目标视角——这是一种典型的<em data-page-node-id="yZFg9Wva6dPrt0vfVQl7lN">寄生反馈</em>，可能损害精度甚至导致不稳定。</p>
+        <p class="body a" style="--d:.32s" data-page-node-id="4DhxppLtx0ESq5YuoT6dBn">模型用增益 <code data-page-node-id="C1AOcDqrx4BviwPMJG31mA">K_r = −0.02</code> 的线性关系近似这一非线性效应，用于检验系统鲁棒性。</p>
+        <div class="note a" style="--d:.44s;margin-top:22px" data-page-node-id="Y1QflrDUbNp3DnRvXig8Fh"><b data-page-node-id="XipvUyV5vbtzdbtCm1yOqT">把不完美建模出来</b>，正是这个示例的价值之一——你还可以加入陀螺过载敏感性等效应，检验跟踪器与滤波器的稳健性。</div>
+      </div>
+      <figure class="shot a fig-a" style="--d:.3s;max-width:460px" data-page-node-id="2K3jLuEczbCezWvnjyFbrD">
+        <img src="assets/xxguidance_radome.png" alt="天线罩像差" style="max-height:42vh" data-page-node-id="UPECKyvRhXthCQxwugsmUq">
+        <figcaption data-page-node-id="2doQOUtOgE0Wl3wgAqAdcU"><b data-page-node-id="pztBJiI50ZeofVxFbmizqX">图 · 天线罩像差（Radome Aberration）。</b>天线罩使回波弯折，测得视线角与真实视线角出现偏差（MathWorks 官方示例插图）。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 17 比例导引 ============ -->
+<section class="slide" id="s17" data-part="PART 04 · 核心原理" data-name="比例导引" data-page-node-id="UZPh18cJ33DJAYODTtJOej">
+  <div class="wrap focus" data-page-node-id="312zpWVtHFNoVy65HndtaJ">
+    <div class="eyebrow a" data-page-node-id="NSQdNh6uCF2DO3iX6lE3IP"><span class="line" data-page-node-id="v1UFMfiqHIMFyeq5HT1Dlv"></span>PART 04 · 核心原理</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="Moum25avuWhZz5TrPgR4xt">比例导引（PNG）：70 年不衰的"灵魂算法"</h2>
+    <div class="a" style="--d:.22s;text-align:left;margin:26px 0 4px" data-page-node-id="eNO0tcR1TSEpKmuqbhJD1O">
+      <div style="font-family:var(--mono);font-size:clamp(30px,3vw,42px);font-weight:800;color:var(--amber)" data-page-node-id="7eTe8gnbpLvqyQvqpPcLmt">
+        a<sub data-page-node-id="HFtVFoSAjbC2cMn9dAAdTi">c</sub> &nbsp;=&nbsp; N · V<sub data-page-node-id="1pEHODl22bW94G5EGrGVgM">c</sub> · λ̇
+      </div>
+      <div style="font-size:clamp(12.5px,1vw,14px);color:var(--faint);margin-top:8px;letter-spacing:.06em" data-page-node-id="OiRV2cJqEqOaHGWETw9J9d">（a<sub data-page-node-id="hF6VXP5GK4vnfYnee5MuXF">c</sub> 过载指令 · N 导航比 · V<sub data-page-node-id="LMMAl6TEQHaf3qogFFxvXQ">c</sub> 接近速度 · λ̇ 视线角速率）</div>
+    </div>
+    <p class="lead a" style="--d:.36s;max-width:34em" data-page-node-id="aNiD8nCBglyX9KYvfXzPlk">直觉表述：两个匀速运动的物体，只要<b data-page-node-id="h30qnav0iSJw5pKtwuDvPS">视线方向保持不变</b>（视线角速率 λ̇ = 0），就必然相遇。所以一旦发现视线在转动，就施加一个<em data-page-node-id="jkvPf9iPRkW7P9cxbmYozq">与视线角速率成正比</em>的过载去"掰直"它。</p>
+    <div class="note gr a" style="--d:.5s;margin-top:22px" data-page-node-id="ejK5JYhEZrX5ZNHg7sRGqt"><b data-page-node-id="TyXfmYzKFmaQTDtkgc8Vu6">为什么说它优雅？</b>不需要解算精确拦截点、不需要目标机动信息、对雷达/红外/电视制导通吃——只用一个乘法完成"预测 + 修正"。简洁、鲁棒、久经实战。</div>
+  </div>
+</section>
+
+<!-- ============ 18 两个输入 ============ -->
+<section class="slide" id="s18" data-part="PART 04 · 核心原理" data-name="PNG 的两个输入" data-page-node-id="byGwhaaQOpcCnC3YS8cor0">
+  <div class="wrap focus" data-page-node-id="sRpiHzZE1ByB7USPMd981G">
+    <div class="eyebrow a" data-page-node-id="z7h5xihF1A6SpDHArYHqnq"><span class="line" data-page-node-id="pCEIULtRS2ox5Gs056CZu5"></span>PART 04 · 核心原理</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="E5qIcziJCxt5SNGN0kDgoF">实现它，只需要两样信息</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="meST0M0rgMERWj12qAzsn6">都由导引头提供——</p>
+    <div class="flatlist" style="margin-top:32px" data-page-node-id="mn9LEjSP3OFG1dol5jQWre">
+      <div class="fitem a" style="--d:.3s" data-page-node-id="JEsD5pAbAcTbYNU3gDibTd">
+        <div class="fhead" data-page-node-id="sXEgtCSPdVbZ7mCvM4XJfH">① 接近速度<span class="fsub" data-page-node-id="nyxF2ktEfQW9x5HrQomm4T">V<sub data-page-node-id="CdyhOwx2QU2enZQIbgWtTJ">c</sub> · Closing Velocity</span></div>
+        <div class="ftext" data-page-node-id="gCmysvn5GK4gHqio68vQFY">导弹与目标距离缩短的快慢。雷达制导导弹用<b data-page-node-id="EHkkwNHwnqgwYxBsqfIgsZ">多普勒跟踪</b>直接测得——回波频移正比于接近速度。</div>
+      </div>
+      <div class="fitem a" style="--d:.42s" data-page-node-id="WOn1U3nGfkQwYl1vax8Y0O">
+        <div class="fhead" data-page-node-id="Pbpbb6Sn44hRw3sz7KMf5b">② 视线角速率<span class="fsub" data-page-node-id="6aoNs18sjbSxCRzFEVmVe3">λ̇ · Sightline Rate</span></div>
+        <div class="ftext" data-page-node-id="ZoEJmvJkDBafkwBSvkBHcC">视线方向转动的快慢。由跟踪环 + 稳定环 + 估计滤波器<b data-page-node-id="fIUUAe8htl5NwCRCU6Qfi8">共同估计</b>，是导引头最关键的输出。</div>
+      </div>
+    </div>
+    <figure class="shot a fig-a" style="--d:.52s;margin-top:30px;max-width:520px" data-page-node-id="88Mb6GBVTOtVQsCTCk1G4l">
+      <img src="assets/xxguidance_sight.png" alt="比例导引视线几何" style="max-height:28vh" data-page-node-id="cBYqsHPW4vckSllOEHXaXh">
+      <figcaption data-page-node-id="PSbzQ2jD6KuFAqP9TDhHUu"><b data-page-node-id="FXufaNF3JVnaqCeVcJpmNY">图 · 比例导引的视线几何。</b>导弹 M 追踪目标 T，PNG 的目标是让视线角 λ 的变化率趋于零（MathWorks 官方示例插图）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 19 时间线 ============ -->
+<section class="slide" id="s19" data-part="PART 05 · 仿真结果" data-name="交战时间线" data-page-node-id="gKDkaci6ZhHJrHPycuVs1V">
+  <div class="wrap focus" data-page-node-id="d4NapOEFyP0Wzye0Cz3C0y">
+    <div class="eyebrow a" data-page-node-id="46SKYNFCDWPHe4P9VPBp8M"><span class="line" data-page-node-id="9vRuLlfF6OzUF1f18kBXWc"></span>PART 05 · 仿真结果</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="n0dkKvYSGutvgISfbTPFGp">实战检验：一次完整的 3.46 秒</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="FmDycEkvISB1xBFznLbtl1">运行模型（<code data-page-node-id="JD82iOhUNRZQqxq24m0wO3">sim('aero_guidance')</code> + <code data-page-node-id="mowfDPSNjLOZNc4n8KGqJz">aero_guid_plot</code>），看数字导弹如何完成使命——</p>
+    <div class="timeline" style="max-width:860px" data-page-node-id="1LdLcIEOemzCAEgu2r3SHu">
+      <div class="tl-item a" style="--d:.3s" data-page-node-id="N81mflQw3hTQ1uxVQ9C1KM"><div class="t" data-page-node-id="HeucsKmF3FPHpgieS1BLQY">0.00 s</div><div class="e" data-page-node-id="3dCvmanjpgUp7EPWPhs7gz">发射 · 搜索</div><div class="d" data-page-node-id="voKkUqac0ly6PnaAMHZ396">导引头按预设规律扫描空域</div></div>
+      <div class="tl-item a" style="--d:.44s" data-page-node-id="Fc73mBFUG1PGkz2HpoTDRQ"><div class="t" data-page-node-id="kuZhABoncZxXpCvwQrkfxR">0.69 s</div><div class="e" data-page-node-id="dyT4K5p8vxJJ089QkfPvNf">目标捕获</div><div class="d" data-page-node-id="0Kpr4JDxKyUR7DLtDEr0Wq">目标进入 10° 波束，标记锁定</div></div>
+      <div class="tl-item a" style="--d:.58s" data-page-node-id="zYAvBzJmcia645g4Zzv7eV"><div class="t" data-page-node-id="x1qJLpRDdpmmu3wy8zulVA">0.89 s</div><div class="e" data-page-node-id="wvlWfoFutdfRrCaBuMEH8E">闭环制导</div><div class="d" data-page-node-id="5ttqbCZNWyubBHSqhRTQv3">比例导引接管，开始机动</div></div>
+      <div class="tl-item a" style="--d:.72s" data-page-node-id="AXpafItvZHL7hrHwkYphYV"><div class="t" data-page-node-id="QLgBlW4OMmiLCj0OlGLfpA">3.46 s</div><div class="e" data-page-node-id="c9zZxBSqjCrHfW67UDsdmp">命中目标</div><div class="d" data-page-node-id="Cnj7z7c7BlRZiwqwLGWWHL">脱靶量仅 0.265 m</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 20 结果总览 ============ -->
+<section class="slide" id="s20" data-part="PART 05 · 仿真结果" data-name="结果总览" data-page-node-id="foWI5PZWHAroRvxVoxpRe7">
+  <div class="wrap" data-page-node-id="YlHm8UgHLSz8pPYTxZ891U">
+    <div class="eyebrow a" data-page-node-id="fdPzCYXOuZc69uGCiCfZHz"><span class="line" data-page-node-id="qHSpv3rtzBXgRHZmiGadLB"></span>PART 05 · 仿真结果</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="M2NqPvH9yfPznKAJifmGPS">跑完之后：脱靶量写在这里</h2>
+    <figure class="shot a fig-a" style="--d:.22s;margin-top:22px" data-page-node-id="Iyuk7du3TM3bCqQUdhTa37">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_08.png" alt="仿真完成后的顶层模型" style="max-height:50vh" data-page-node-id="kI4aMkEETJvaIVAi5Gd9ay">
+      <figcaption data-page-node-id="3RTHKVYDT8hHR4JBtp2PzW"><b data-page-node-id="F6zcEM35DS2AGlPXlDCRyk">图 · 仿真结束后的顶层模型。</b>右下角 Miss Distance 显示块给出本次运行的脱靶量（截图运行为 0.2621 m；官方文档正文记载 0.265 m，不同运行版本略有差异）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 21 四联图 ============ -->
+<section class="slide" id="s21" data-part="PART 05 · 仿真结果" data-name="性能四联图" data-page-node-id="jxFpm3ZDA52iZvNkJfz19w">
+  <div class="wrap" data-page-node-id="s9MKhT9aZ0ACthuny1u4Zd">
+    <div class="eyebrow a" data-page-node-id="3wCLVlc40EEZL6YiRSgVo7"><span class="line" data-page-node-id="WdDiLeVEpywmV4J9AvuMag"></span>PART 05 · 仿真结果</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="wekGDHNMiieAy7wCb9bxEQ">导弹的"体检报告"</h2>
+    <figure class="shot a fig-a" style="--d:.22s;margin-top:20px;max-width:640px" data-page-node-id="pFva11pxEJZNZi0miYBWoN">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_09.png" alt="过载、迎角、马赫数、舵偏曲线" style="max-height:52vh" data-page-node-id="ScKacqGqpnegkSOEzCaBQZ">
+      <figcaption data-page-node-id="FJAuoW6t6GLYrHVMhj8MqP"><b data-page-node-id="HOtDMcUvvbE88EWZxozGLg">图 · 性能分析四联图（aero_guid_plot.m 生成）。</b>
+      ①<b data-page-node-id="wxMQr9wVEZuFIBCuPPFxLa">法向过载</b>：0.89 s 闭环启动瞬间指令陡增，弹体快速跟上，末段收敛趋零——视线被"掰直"的证据；
+      ②<b data-page-node-id="S8CLhTNJybmOLmbUWmZSpk">迎角</b>：机动爬升时达约 17°后回落；③<b data-page-node-id="nxQGqYEnwnmIH1HxrUUBLg">马赫数</b>：2.98–3.10 间小幅波动；
+      ④<b data-page-node-id="vn2c0nmPbe8yjG5Dmmirk5">舵偏</b>：最猛烈瞬间一度逼近 ±30° 限幅——考验的正是抗饱和设计。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 22 轨迹与锁定 ============ -->
+<section class="slide" id="s22" data-part="PART 05 · 仿真结果" data-name="轨迹与锁定" data-page-node-id="ncAL0QGxVcHxviEfy9sdvM">
+  <div class="wrap" data-page-node-id="cMB1FH6zo9esDVPwEh7CBz">
+    <div class="eyebrow a" data-page-node-id="BxGepvGYrFk9GsNt5lGn9Z"><span class="line" data-page-node-id="RPrWaaXJ8JTyJaSf1vYgQ7"></span>PART 05 · 仿真结果</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="isYgnPAJNBfrEymzCl5YLx">两条曲线，讲完这场追猎</h2>
+    <div class="grid g2" style="margin-top:24px" data-page-node-id="I8z0RPIagrGArX0HgJWnaE">
+      <figure class="shot a fig-a" style="--d:.26s" data-page-node-id="OGB8EkjiybyAUCirgALBAC">
+        <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_10.png" alt="万向节角与视线角" style="max-height:38vh" data-page-node-id="KL3wAglVWlD1WQOCebLT7O">
+        <figcaption data-page-node-id="TyavctVZebKiyvxohJfUh1"><b data-page-node-id="cS8zzhBJuiIQRjBVlMPjVy">图 · 万向节角 vs 真实视线角。</b>搜索阶段（0–0.69 s）天线摆动扫描；捕获后（红 ×）紧紧咬住目标，两线重合。</figcaption>
+      </figure>
+      <figure class="shot a fig-a" style="--d:.4s" data-page-node-id="9GWGI9Vr2IKKfUAIBlQHQ0">
+        <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_11.png" alt="导弹与目标弹道" style="max-height:38vh" data-page-node-id="X079MDHc308HkFU3Tt1x1o">
+        <figcaption data-page-node-id="N9R3yZdQ56HFK4lGFriDuB"><b data-page-node-id="LQJRZjG6jVGJ6nXfo73HJm">图 · 导弹与目标轨迹。</b>目标（蓝虚线）迎面平飞，导弹（橙线）捕获后持续上弯，两线最终交汇于一点。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 23 动画 ============ -->
+<section class="slide" id="s23" data-part="PART 05 · 仿真结果" data-name="动画参考" data-page-node-id="NQErA4iy8ND8VBjvMQDrDj">
+  <div class="wrap" data-page-node-id="aE4DC7R3x6wl1TXPbFqARc">
+    <div class="eyebrow a" data-page-node-id="xVk5MbogzUgP1MHXJOUFV5"><span class="line" data-page-node-id="8oN3LiUQjYat8HHWCit5D4"></span>PART 05 · 仿真结果</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="BSCfB7J5xx2CBSiWvDiDDR">内置 3DoF 动画：直观的视觉参考</h2>
+    <figure class="shot a fig-a" style="--d:.22s;margin-top:22px" data-page-node-id="MPuYxHk11SXlQpzilJ0MtA">
+      <img src="assets/DesigningAGuidanceSystemInMATLABAndSimulinkExample_12.png" alt="3DoF 动画帧" style="max-height:48vh" data-page-node-id="bX4VsAf9uskszXz2yNucuO">
+      <figcaption data-page-node-id="XoepAWe4oGSDIPm4kay25W"><b data-page-node-id="JL7EpfervbiJ1XpLGIdJg0">图 · 模型内置的 3DoF 动画。</b>以弹体质心为参考，红/蓝曲线分别为导弹与目标的轨迹——为仿真提供直观的视觉参考。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 24 参数一 ============ -->
+<section class="slide" id="s24" data-part="PART 06 · 参数与词典" data-name="参数 · 弹体与初始" data-page-node-id="Rh28slUdA79HosbfGoFnTl">
+  <div class="wrap focus" data-page-node-id="RksqG7l7WHOJqUsGEGel70">
+    <div class="eyebrow a" data-page-node-id="Y2GHKR6uKMV84t34M98zMp"><span class="line" data-page-node-id="2JKmJvG2HZi1b77KzthqU7"></span>PART 06 · 参数与词典 · 1/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="Y1o57skEkTYAQCEG7Mozif">关键参数 · 导弹本体与初始条件</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="bZTSWERpnAZCwLQtHDFjSr">数值均出自初始化脚本 <code data-page-node-id="GXWmF2eTBvr8t1JEAhm6tW">aero_guid_dat.m</code>，可对照复现。</p>
+    <div class="tbl-wrap a" style="--d:.3s;margin-top:24px" data-page-node-id="p6HuluRE0YDJgvnIL29Wtu">
+      <table data-page-node-id="kHvMpTC7EhwsI0xObw0o1v">
+        <tr data-page-node-id="auqZUuWYEaPFYMUzKIO4CI"><th data-page-node-id="PrnbL6sLFwQ5ZCjCi1ckbP">参数</th><th data-page-node-id="bzl5whXwcL5ZikTazGQuD9">数值</th><th data-page-node-id="u51LaipzRtz0XzHWgIW8U4">说明</th></tr>
+        <tr data-page-node-id="Nro6uhCKnLclihTSDNhOpO"><td data-page-node-id="QWBoNqnxHsImRdfjwaQFaB">弹体质量 mass</td><td class="v" data-page-node-id="pdgUWuKzzPJTChGoWmGliZ">13.98 kg</td><td data-page-node-id="uEwUwTg6DHLMBu746bW2If">轻型战术导弹量级</td></tr>
+        <tr data-page-node-id="hzIBdn1folA2HeVETRXgJi"><td data-page-node-id="AZAqAEw6iEpcChaL9XgVuO">参考面积 S<sub data-page-node-id="ipXdCBZD07ybTPrUwHjbfo">ref</sub></td><td class="v" data-page-node-id="JiSowCXnIuOJBVhRNkRIme">0.44 ft² ≈ 0.041 m²</td><td data-page-node-id="vKnHVSOkqr04eRVj0lAZij">气动系数的归一化基准</td></tr>
+        <tr data-page-node-id="l2MTOgwhGuF0KAvybnVtl1"><td data-page-node-id="giy91I7X9jfBNBg6MRpU0e">参考长度 d<sub data-page-node-id="EdE0eN1dKQfStnOSqZES8f">ref</sub></td><td class="v" data-page-node-id="OrsXiC3N2hbkkjdO0S66X4">0.75 ft ≈ 0.229 m</td><td data-page-node-id="quAYoZMFMUjptfbJ0OJlJf">对应弹径</td></tr>
+        <tr data-page-node-id="YJgPDmCxPcFReRRXM41AMN"><td data-page-node-id="Y82VxkHF6FLgEVflBOY3y2">俯仰转动惯量 I<sub data-page-node-id="N3EftiGcaOFXMDQUpE2Dc6">yy</sub></td><td class="v" data-page-node-id="o2yTdS2WO3GTFJp5GWD7GG">182.5 kg·m²</td><td data-page-node-id="WHHwoA50xSysjtoBnaLFjq">绕弹体坐标系 y 轴</td></tr>
+        <tr data-page-node-id="Mfcl5PEYsBwbtFAJpRiTpY"><td data-page-node-id="vHgdU7i5wsUrPDi8JYmFg0">发动机推力 Thrust</td><td class="v" data-page-node-id="BNhFFd2S8kO6KIqArdgonR">10 kN（恒定）</td><td data-page-node-id="6J7YmE5oxhB88jPQTtVrog">仿真全程不变</td></tr>
+        <tr data-page-node-id="jx8o5st3IDtTo1HmTsVFHw"><td data-page-node-id="RNPkWYVnRU68Q4eA0Hwzhx">初始高度 h</td><td class="v" data-page-node-id="UkNzG8hZnpNnazYhhetZFZ">10 000 ft ≈ 3 048 m</td><td data-page-node-id="gHKZdBa2Bd8VEzAc1LQrDP">初始迎角、弹道角均为 0</td></tr>
+        <tr data-page-node-id="KBUm1Q7y8rzRgRqial71MJ"><td data-page-node-id="7mLhHFZwhnRSayfmHhRSVp">初始速度 v</td><td class="v" data-page-node-id="33D6aL4ZRmDTsQkdTEB2e6">984 m/s（马赫 3）</td><td data-page-node-id="PYEeS3wp7sJYiB7byExOj6">平飞出发</td></tr>
+        <tr data-page-node-id="E3wg9n2DRzcRW3stmeSbOA"><td data-page-node-id="O6OH6yjMjztGNh3YPCzG8H">目标初始位置</td><td class="v" data-page-node-id="bV9rVe2E2i7Bstxe8DPwj0">前方 4 500 m · 上方 500 m</td><td data-page-node-id="k6Cb3iDyRbQTMSdnHHqZ8k">以 328 m/s 迎面飞来</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 25 参数二（舵机与传感器） ============ -->
+<section class="slide" id="s25" data-part="PART 06 · 参数与词典" data-name="参数 · 舵机与传感器" data-page-node-id="60kWan5jACYTiG1AzpZpNX">
+  <div class="wrap focus" data-page-node-id="VUWjjOMevQXtxMi3eoiYSg">
+    <div class="eyebrow a" data-page-node-id="AxZrm4YexVHbHEwHlf2xHo"><span class="line" data-page-node-id="MNVXFaBMCZgFz8IRUkkuth"></span>PART 06 · 参数与词典 · 2/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="tjFiyPNdvmNE9OPQc7YPIR">关键参数 · 执行机构与传感器</h2>
+    <div class="tbl-wrap a" style="--d:.24s;margin-top:24px" data-page-node-id="8okL5bxkPL2ppnRa55xD8r">
+      <table data-page-node-id="HHaKKkhblJdvb4tVfj6XTB">
+        <tr data-page-node-id="mdxYU8jTxOGmB6BsZCzA3x"><th data-page-node-id="1V0l0gza3PNvqugvWfrukt">参数</th><th data-page-node-id="tVYQsrTotaS4kWlraHQr86">数值</th><th data-page-node-id="SfaoCFXEHLR4QzuDMA5qiV">说明</th></tr>
+        <tr data-page-node-id="dF4R0Pgkdl9MZsmTAZqEga"><td data-page-node-id="w3bi8GbK4BEotvRMqWk4DF">舵面限幅 fin_max/min</td><td class="v" data-page-node-id="jBFZQgukw7Eq7JIzbOKRYG">±30°</td><td data-page-node-id="3cN95aRQQOddHkTYBXazk9">最大偏转角</td></tr>
+        <tr data-page-node-id="Ez5suiv9MAuEwMbSQzwW9k"><td data-page-node-id="UotIvjD509GlX0TYBFvHZt">舵面速率限幅</td><td class="v" data-page-node-id="npWeCm5bOZ1bIdmEZDqc6M">500 °/s</td><td data-page-node-id="FEfLEGI5UEl3H1WiA4O3Hw">舵机偏转速率上限</td></tr>
+        <tr data-page-node-id="3jrXCk04xDxHnzxhOJWGdM"><td data-page-node-id="m7dka6sbrCro8t7X6KmgZj">舵机带宽 w<sub data-page-node-id="bxIFlln7LFE8TaDi6ULoD3">n</sub></td><td class="v" data-page-node-id="ERMWXBR2dQepmIBhfsJvXx">150 rad/s（阻尼 0.7）</td><td data-page-node-id="5CG7cEAMDg7f7k7rLz7cBG">二阶执行机构模型</td></tr>
+        <tr data-page-node-id="r0Rr87flPXcmTW0FiEzGi2"><td data-page-node-id="TIQOSECzIdhF7MxSptIW1O">加速度计位置 l_acc</td><td class="v" data-page-node-id="fAbg1PsCixjDT88gELiTYk">重心前 0.5 m</td><td data-page-node-id="4HQpPtLoqpwMyQ37byy747">三环路设计的测量点</td></tr>
+        <tr data-page-node-id="cqOhDHLoZand3Li8AVWb9I"><td data-page-node-id="7ROVyBD7zEPCy2RGj523t8">最大需求过载</td><td class="v" data-page-node-id="CunXynI7vyMWo7wIq0C1j7">40 g</td><td data-page-node-id="xG5z3VAC4CJ73GGScWyyE1">自动驾驶仪指令上限</td></tr>
+        <tr data-page-node-id="zOSzHUdF5hHiiwE3VEvQfh"><td data-page-node-id="prk962ufSKudgtK93vfZnJ">气动查表网格</td><td class="v" data-page-node-id="d0n4G8vjwZWN40kDPFST9N">Mach 2:0.5:4 × α −20°:1°:20°</td><td data-page-node-id="hxxdSdBk4BAr2lWzHyH51v">二维插值的自变量网格</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 26 参数三（导引头） ============ -->
+<section class="slide" id="s26" data-part="PART 06 · 参数与词典" data-name="参数 · 导引头" data-page-node-id="s9jvqweo4xCMZff3IRj6B6">
+  <div class="wrap focus" data-page-node-id="qSCG3uxFT3sGFH6qYXKcUz">
+    <div class="eyebrow a" data-page-node-id="MV7WVd89g3Cv9sRN7X1Uwp"><span class="line" data-page-node-id="5JEKfr5WS7SJLqDBDXhrY1"></span>PART 06 · 参数与词典 · 3/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="gsUMJpCaylFyM6JIsIQEOn">关键参数 · 导引头</h2>
+    <div class="tbl-wrap a" style="--d:.24s;margin-top:24px" data-page-node-id="enIx8Bv1wDWCyG2JkRueLF">
+      <table data-page-node-id="ACBtO3QVhffRR1gIfqY0bd">
+        <tr data-page-node-id="1OOGjDx7oIHG3NCSpft50v"><th data-page-node-id="KyRzTV4kFy3ajeCBxHMoC1">参数</th><th data-page-node-id="LdZ9bX8D32ghBv8ziEUXBc">数值</th><th data-page-node-id="OA8EHHPSTm7BzpoDl8S8VC">说明</th></tr>
+        <tr data-page-node-id="ED0yWGc8HyRr4cs6xBAsHM"><td data-page-node-id="N3PkuBNczjxbn8sAUYttGD">万向节限幅</td><td class="v" data-page-node-id="3DNuy8sqjr0VEfWaA26qco">±35°</td><td data-page-node-id="1KRUqzGPjGoGYYbcOVsttD">天线转动范围</td></tr>
+        <tr data-page-node-id="h0P4iGyowzrUt9BmpRtJ6P"><td data-page-node-id="Je3AGHbUjA0XJ12CvMJDLK">雷达波束宽度</td><td class="v" data-page-node-id="LPC7uSVE8KOdwOjAtJdtOv">10°</td><td data-page-node-id="4IGxB8HVgjsKGcF5pr2yin">目标进入即视为捕获</td></tr>
+        <tr data-page-node-id="m5GAqs7gljI8XJF6GxfXMq"><td data-page-node-id="SSumXhG1LqHRSG2A7l0tnP">跟踪环时间常数 tors</td><td class="v" data-page-node-id="FWNYp4Rv81wYvwzpmjtUh0">0.05 s</td><td data-page-node-id="5152pqouRlaRb6z4Q2YE5n">响应速度与噪声的折中</td></tr>
+        <tr data-page-node-id="2cW6LMerfdyPBVk3R5fea8"><td data-page-node-id="Fn6JTH1Hr2iXls6RTotnw5">速率陀螺带宽</td><td class="v" data-page-node-id="zhIezNrAvQzJLLnBtur8d2">100 Hz</td><td data-page-node-id="VJlUyQvCAFSDjKRDqBHLwV">稳定环增益 K<sub data-page-node-id="3eIOA0AQpCyb0SDQEQImlg">s</sub> = 带宽/5</td></tr>
+        <tr data-page-node-id="dMs4VKfqw9Q2aDb3yHfTVY"><td data-page-node-id="BVEX5GGjr7laxhX9m6DVbz">估计滤波器带宽</td><td class="v" data-page-node-id="UR23TDfNp2yiZtEwaOBCct">7 rad/s</td><td data-page-node-id="CDrIipBqkoY8Yh04EeIa10">约为自动驾驶仪带宽之半</td></tr>
+        <tr data-page-node-id="DfdmVfZ8nKlzzVNKegmg3z"><td data-page-node-id="crTbBASmqqetBkVF8nMyzz">天线罩像差 K<sub data-page-node-id="DWA46qMW2quT4h99zVVbZt">r</sub></td><td class="v" data-page-node-id="t6DuG0SLQKTCBzY3NDg6XA">−0.02</td><td data-page-node-id="tinGYJ2WjbCIprr3oTaCBi">万向节角 → 视角误差</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 27 词典上 ============ -->
+<section class="slide" id="s27" data-part="PART 06 · 参数与词典" data-name="词典 · 上" data-page-node-id="ZaBvhL5WK8rOGdT4Pi8OGB">
+  <div class="wrap focus" data-page-node-id="nw17bA76qtjCySz8DznlkL">
+    <div class="eyebrow a" data-page-node-id="eGlv8jGUChEUbbun83uMIa"><span class="line" data-page-node-id="tLb63BikS2iOpg3OlnleQT"></span>PART 06 · 参数与词典 · 4/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="QDyCwM1KVczyVkXKYYMous">术语小词典（上）</h2>
+    <dl class="dict" style="margin-top:22px" data-page-node-id="BgiWQUFPDCsK7qeV6kSImt">
+      <div class="item a" style="--d:.24s" data-page-node-id="WNJbZIEBR8CsgXrZpk3OzC"><dt data-page-node-id="dsDPM9ELTxAw067G6WJIgJ">法向过载</dt><dd data-page-node-id="1VFyFjPzKGGwtkrYkqJC0l">垂直于弹轴方向的加速度，以 g 为单位。导弹不直接"控制轨迹"，而是控制过载——<b data-page-node-id="sB6d1QijvG6ctcaL7CSwGI">轨迹是过载积分的结果</b>。</dd></div>
+      <div class="item a" style="--d:.34s" data-page-node-id="krGEUcQjvNXqxtptBIz2Q7"><dt data-page-node-id="f4sYTDltHsgEIHTWuGZfeC">迎角（Alpha）</dt><dd data-page-node-id="zNPYfjUAUbcLvlBanaPOBQ">弹轴与来流方向的夹角，升力与阻力都由它驱动。本例工作范围 <b data-page-node-id="GqwdEgLeOUqkdyIPW1G1YE">±20°</b>。</dd></div>
+      <div class="item a" style="--d:.44s" data-page-node-id="vTRQXsowsdweq4OW9tTjB2"><dt data-page-node-id="WXdDLafg0KkpQjF6myGyEW">马赫数（Mach）</dt><dd data-page-node-id="KPg9KwunbK0xI0srHLcWqx">速度与<b data-page-node-id="M8ctJyasaZXvnNDrg4ms2u">当地声速</b>之比。声速随高度（温度）变化，同一速度在不同高度的马赫数不同。</dd></div>
+      <div class="item a" style="--d:.54s" data-page-node-id="k54OPALGeJgIAHgmkDGEG7"><dt data-page-node-id="WrWX9ewpNhtnRpbbEymGP5">配平与线性化</dt><dd data-page-node-id="pDPf0cpeANaVUvyEIQmMdq">在定直平飞等"平衡点"上求出舵偏/迎角组合，把非线性模型近似为线性模型——<b data-page-node-id="9LDk3jPrAJ5bNzy8d80hq6">经典控制设计的起点</b>。</dd></div>
+      <div class="item a" style="--d:.64s" data-page-node-id="ysXYKdV2718xfLiBD5CDQq"><dt data-page-node-id="dThAIsAWZySMqxPFiE8H2g">增益调度</dt><dd data-page-node-id="RkD0pGr6Rz5uSBhwN2Y6fZ">按飞行状态（迎角 × 马赫数）实时切换控制器参数，用一组局部线性设计<b data-page-node-id="LFJDAUBd9ldcymsyQEwzTf">覆盖全飞行包线</b>。</dd></div>
+    </dl>
+  </div>
+</section>
+
+<!-- ============ 28 词典下 ============ -->
+<section class="slide" id="s28" data-part="PART 06 · 参数与词典" data-name="词典 · 下" data-page-node-id="sQO2Iqe0h202vryk9KmOir">
+  <div class="wrap focus" data-page-node-id="UFEyO1B71REjPQX5YuYd3b">
+    <div class="eyebrow a" data-page-node-id="Ih93hDHSsSiDqjF2mWjBXE"><span class="line" data-page-node-id="ykMakvotOCKLVflMPZ4GMe"></span>PART 06 · 参数与词典 · 5/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="2PfP38pvDNMGmG7r41SJPs">术语小词典（下）</h2>
+    <dl class="dict" style="margin-top:22px" data-page-node-id="soyTAJtdlSdG6FlUMXZF7g">
+      <div class="item a" style="--d:.24s" data-page-node-id="nHyqXaNQfep6BBpkey5aED"><dt data-page-node-id="q5ZBfnNvYWK9kXGVk97DLh">抗积分饱和</dt><dd data-page-node-id="2Xpl11dC0vNIQcH3uv0Ue7">舵面有 ±30° 限幅；指令超限时防止积分器继续累积，否则退饱和时会产生<b data-page-node-id="rH1TpsBydoo5oX92eAWj10">大超调</b>。</dd></div>
+      <div class="item a" style="--d:.34s" data-page-node-id="39Hx5OhyRcbCLPANHuBejP"><dt data-page-node-id="jCn5BWsEpfGmfLTxhtt1FC">视线角速率 λ̇</dt><dd data-page-node-id="0Preaa8Fj2SfzYD2tGKqzE">导弹—目标连线方向的变化速率，<b data-page-node-id="K4dkfrsNyJaOiGnHvebBXN">比例导引的核心输入</b>，由导引头估计给出。</dd></div>
+      <div class="item a" style="--d:.44s" data-page-node-id="wuDumeoxeYLD1xCjUB1qyv"><dt data-page-node-id="RaVaMQnBlVxFBD9gWVxyMG">脱靶量</dt><dd data-page-node-id="2OIuyKhlq0hOLvoI9QIj8z">弹目交会中最近点的距离。本例 <b data-page-node-id="K9EeZejPF4bXhc2KoCpNZo">0.265 m</b>——战斗部有效杀伤半径轻松覆盖。</dd></div>
+      <div class="item a" style="--d:.54s" data-page-node-id="WcrYoeyrKcjzhtnxa7Aes6"><dt data-page-node-id="rIj1NehVVDRpC2v3I7Cdn2">寄生反馈</dt><dd data-page-node-id="l2y0kEbJwv99quDoFRTHEd">天线罩像差、陀螺对过载敏感等非理想效应，把输出"偷偷"喂回输入，是制导系统<b data-page-node-id="sUDv28ttjj1LoJ98y3HFCL">不稳定的重要隐患</b>。</dd></div>
+      <div class="item a" style="--d:.64s" data-page-node-id="AI3mP0IBWTGA3pmqph4trv"><dt data-page-node-id="sbZA9CdGm8d5YjegTyXBLW">ISA 国际标准大气</dt><dd data-page-node-id="aCwPqgQdqSJUvn8i2NQLEr">以海平面 15 ℃、101 325 Pa 为基准的理想化大气模型，按高度分段给出温度/压强/密度。</dd></div>
+    </dl>
+  </div>
+</section>
+
+<!-- ============ 29 来源 ============ -->
+<section class="slide" id="s29" data-part="PART 07 · 来源" data-name="来源与文献" data-page-node-id="F97trfNPBYDhFzL63usOI2">
+  <div class="wrap focus" data-page-node-id="l4gAW721EX1dkqbhVyjtXq">
+    <div class="eyebrow a" data-page-node-id="2LQb8HbdC41aZVEAk6HwG8"><span class="line" data-page-node-id="SZAOCuR4dpk6iewgiD4IEb"></span>PART 07 · 来源</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="VnNhXrpfC9greOYogNbKga">来源与文件清单</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="aCpOB9Zk8JCNt9FPKB6iNN">本页所有内容与图片均<b data-page-node-id="FrRZiz3plBw7VSMIElEDrx">转述自 MathWorks 官方示例</b>，仅作实训学习用途，版权归原作者所有。</p>
+    <ul class="refs a" style="--d:.3s;list-style:none;margin-top:20px" data-page-node-id="U9ibmBxY7lAeKEedMD7QQd">
+      <li style="margin-left:0" data-page-node-id="AL8ZIkYJP7dh0I2cAOW47s">📄 官方文档：<i data-page-node-id="wne8sJAR2DRPM1wbDsmiyX">Designing a Guidance System in MATLAB and Simulink</i><br data-page-node-id="is18A5IJB8PwzYXkoFAj09">
+        <code data-page-node-id="N9VYFaaMyMqthDJQpZL5cy">https://ww2.mathworks.cn/help/simulink/slref/designing-a-guidance-system-in-matlab-and-simulink.html</code></li>
+      <li style="margin-left:0;list-style:none" data-page-node-id="OFbywBCiATJlqLiobxmGGd">📁 模型与脚本：<code data-page-node-id="vQ4KaxILRSAX32hxMqpAWw">aero_guidance.slx</code> · <code data-page-node-id="BkC4xYpFNIfjGZ2QQEEaXM">...Example.m</code> · <code data-page-node-id="doPvdVEHRHECLTgdWLUFj9">aero_guid_dat.m</code> · <code data-page-node-id="LTsQeJq28qjWJG6Kbc2yIs">aero_guid_plot.m</code> · <code data-page-node-id="geu9y9yLjyzKigvBVUIhKn">aero_guid_autop.mat</code>（本地 <code data-page-node-id="JMoTBmgLmpfBRGd9H5eAFk">示例文档原件/</code>，只读）</li>
+    </ul>
+    <h3 class="a" style="--d:.42s;font-size:clamp(17px,1.4vw,20px);margin:26px 0 10px;color:#fff" data-page-node-id="7h79VGqb3tuHI2wbOZ6fIt">延伸阅读 · 官方引用文献</h3>
+    <ol class="refs a" style="--d:.5s" data-page-node-id="YLghCH3cC3CEjWzmjiv7VQ">
+      <li data-page-node-id="GPWjLxVzqGHrpS8hVgLCNb">Bennani, Willemsen &amp; Scherer. "Robust LPV Control with Bounded Parameter Rates." AIAA-97-3641, 1997.</li>
+      <li data-page-node-id="E3c4KhBKtef1bq2DZVFwT7">Mracek &amp; Cloutier. "Full Envelope Missile Longitudinal Autopilot Design Using the SDRE Method." AIAA-97-3761, 1994.</li>
+      <li data-page-node-id="cafHPWeWDMGGAzI2HDa9w2">Shamma &amp; Cloutier. "Gain-Scheduled Missile Autopilot Design Using LPV Transformations." <i data-page-node-id="d7PFcN8UeJlrmnAmHkl422">JGCD</i>, 16(2), 1993.</li>
+      <li data-page-node-id="CB56TDPa3CSam9UXHQqBPH">Lin, C.-F. <i data-page-node-id="ab3GjunnkrwsXPQT7Nm9zj">Modern Navigation, Guidance, and Control Processing</i>, Vol. 2. Prentice Hall, 1991.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ 专题 A：模块协作 ============ -->
+<section class="slide" id="t01" data-part="专题 A · 模块协作" data-name="信号的旅程" data-page-node-id="HHwUWac5vrGCqZJFXPB4TM">
+  <div class="wrap focus" data-page-node-id="ElAGGLGBZJGM9TcH7686Dj">
+    <div class="eyebrow a" data-page-node-id="jSpho1gqKCkKDhhPD7npYC"><span class="line" data-page-node-id="mKKwqEqVuMN0pes45ppu8l"></span>专题 A · 模块协作 · 1/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="Ucv8q7syGwIKHjrFkX1LNy">信号的旅程（上）：从目标到指令</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="aih6bAaw9ndSmK12WFFGGC">把一个知识点看作一次"接力"：每个模块只做一件事，然后把结果交给下一个。跟随信号的脚步，先走前半程——三次交接，把"看见"变成"指令"：</p>
+    <div class="flatlist" style="margin-top:28px" data-page-node-id="H06BftGVtm9w7yVV69WFQ7">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="RZzP876DAstKHvEgN42GNY">
+        <div class="fhead" data-page-node-id="BULoFpLvjgDFAMSYRVYNTE">① 接收<span class="fsub" data-page-node-id="6nBLz9irDgwCoWNzG9HXjD">导引头</span></div>
+        <div class="ftext" data-page-node-id="eGWgqSz3X4gAHDj6K3eneq">目标反射的雷达波打在导引头天线上，天线由<b data-page-node-id="41FqyKjpQH3MYET9FTineA">万向节</b>驱动，始终保持指向目标。</div>
+      </div>
+      <div class="fitem a" style="--d:.36s" data-page-node-id="eYQWBqiDhuyNPyVoHLNiuJ">
+        <div class="fhead" data-page-node-id="cDpVNrBj8zUjCoYKqt5Goh">② 感知<span class="fsub" data-page-node-id="TQ4whNKAyIEe02i7TFDYA6">跟踪器</span></div>
+        <div class="ftext" data-page-node-id="dt58Cd6YM9S7DqraAy9rZe">跟踪环 + 稳定环把天线运动和弹体转动折算合并，输出最关键的度量——<b data-page-node-id="NUZQbVGRSeaMHg5FBFSSNq">视线角速率 λ̇</b>。</div>
+      </div>
+      <div class="fitem a" style="--d:.46s" data-page-node-id="fQ3ZEZB43OfEhthNot9rm0">
+        <div class="fhead" data-page-node-id="zoyqrcB90UJbHwjLi153rM">③ 决策<span class="fsub" data-page-node-id="eMucceZkdKzsx3AXvhwGvx">制导律</span></div>
+        <div class="ftext" data-page-node-id="JQnTbf5CgcDdVNuOMonsDV">比例导引只做一个乘法：<b data-page-node-id="EchL71mzcXSboserRm23OH">a<sub data-page-node-id="LDxvzBnDmannHsj6qgpPPJ">c</sub> = N·V<sub data-page-node-id="WJx7vAHe9ZwYNnUutp0rXn">c</sub>·λ̇</b>，产出"过载指令 A<sub data-page-node-id="TY7IdsEh1eI4NlRVVlo6Bb">z</sub>_d"交给自动驾驶仪。</div>
+      </div>
+          </div>
+  </div>
+</section>
+
+<section class="slide" id="t01b" data-part="专题 A · 模块协作" data-name="信号的旅程·下">
+  <div class="wrap focus">
+    <div class="eyebrow a"><span class="line"></span>专题 A · 模块协作 · 2/5</div>
+    <h2 class="a" style="--d:.08s">信号的旅程（下）：从指令到命中</h2>
+    <p class="lead a" style="--d:.18s">下半程的三次交接：指令变成动作，动作变成机动，机动又改变下一次的"看见"——</p>
+    <div class="flatlist" style="margin-top:28px">
+<div class="fitem a" style="--d:.56s" data-page-node-id="sWKQCu7FacDGlmdxVUdDgW">
+        <div class="fhead" data-page-node-id="Qco1ivGhN69DCrMEMLNWjK">④ 执行<span class="fsub" data-page-node-id="lq7AHUPH8vHHq7dNkiLNoA">自动驾驶仪 → 舵机</span></div>
+        <div class="ftext" data-page-node-id="sBMUWtfoGUah6FrDMDiN5d">三环路把过载指令换算成舵偏指令，舵机以最高 500°/s 的速率偏转舵面，最大 ±30°。</div>
+      </div>
+      <div class="fitem a" style="--d:.66s" data-page-node-id="I8SyxV5r8kIoEguBPbfmdg">
+        <div class="fhead" data-page-node-id="cZxUnrLLmH2kYqFvVYNEzZ">⑤ 运动<span class="fsub" data-page-node-id="3WFHjq6QNtGnUFIENg69fa">弹体</span></div>
+        <div class="ftext" data-page-node-id="vQFfiAPTQ7pC5tDGoHDdBj">舵面改变气动力 → 弹体获得法向过载 → 位置、速度、姿态随之变化——导弹开始转弯。</div>
+      </div>
+      <div class="fitem a" style="--d:.76s" data-page-node-id="Hs6X7pTYS4qFrTsOqrYyNC">
+        <div class="fhead" data-page-node-id="mKqwUKP0Qgk1v9vWcn8ASa">⑥ 反馈<span class="fsub" data-page-node-id="NqpbETp33oHjfxYAutioJ4">几何</span></div>
+        <div class="ftext" data-page-node-id="J8fvxoNv2SuGPhtgKoHvKF">导弹和目标的相对位置变了 → 视线方向跟着变 → 导引头在下一步重新测量 λ̇。循环往复，直到命中。</div>
+      </div>
+      <div class="note cy a" style="--d:.58s;margin-top:26px"><b>走完 ⑥ 就回到 ①：</b>相对位置变了，视线角速率 λ̇ 跟着变——每 0.01 秒一圈，循环往复，直到命中。下一页看这个圈里套着的环。</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="t02" data-part="专题 A · 模块协作" data-name="内环与外环" data-page-node-id="3SX3HEh62XwYm732g7jyvd">
+  <div class="wrap focus" data-page-node-id="kCG0Ywq55Y1MjjG0enPzmX">
+    <div class="eyebrow a" data-page-node-id="xk6uYTE8aOCO1WBFQbJxzp"><span class="line" data-page-node-id="QVNlLk28nZ47nagNREy8uy"></span>专题 A · 模块协作 · 3/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="spmGfBVpBeq8Hyqo4wLktY">嵌套的环：谁快、谁慢</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="DS1HdlPzKzMdMHe5zPW17y">整条回路其实是<b data-page-node-id="bQbGt4EuRRvOvRYCoYym46">一层套一层的多个闭环</b>。工程铁律：<em data-page-node-id="pa1OOov5eZMM7BSR4pteU5">越靠内的环，响应必须越快</em>——外环发出指令，内环要能跟得上，系统才能稳定。</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="MHbEFOBjk0v2wPDKEK9dNb">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="y7MCBm8ZXPqxDGljmSRC02">
+        <div class="fhead" data-page-node-id="0VKvMZj7CV6U2QQjV81loj">最内 · 舵机环</div>
+        <div class="ftext" data-page-node-id="uNuTiQb1WFBbwvvoUymzSS">舵机二阶模型，带宽 <b data-page-node-id="sCDEcbIyzxCM0czp8ALvLS">150 rad/s</b>、阻尼 0.7。它负责最快地"转舵"，是所有环的地基。</div>
+      </div>
+      <div class="fitem a" style="--d:.36s" data-page-node-id="GXEDeLkFbXadr9ZCraHfBa">
+        <div class="fhead" data-page-node-id="Zv24LAxUbFcbDqhXOFSTLF">次内 · 阻尼环</div>
+        <div class="ftext" data-page-node-id="FW59EFsVJgRJTKenMBMUrl">速率陀螺测量俯仰角速度 q 并反馈，抑制弹体振荡。陀螺带宽 <b data-page-node-id="BE4VLff4deOvdifVfYutwM">100 Hz</b>，稳定环增益 K<sub data-page-node-id="QK5AFx0MCb9ZkalfQZxJG4">s</sub> 取带宽的 1/5。</div>
+      </div>
+      <div class="fitem a" style="--d:.46s" data-page-node-id="zoJlE5YFSeLy9l0oTcgM5j">
+        <div class="fhead" data-page-node-id="o4kFih1exaORfczdIOgHGG">中层 · 过载环</div>
+        <div class="ftext" data-page-node-id="B11A2bpvG4vBAIv3G7eCIa">加速度计测实际过载 a<sub data-page-node-id="nRmoABN6OiSHeAwQqdcfEH">z</sub> 并跟踪指令。自动驾驶仪的带宽决定了它<b data-page-node-id="rA7C1IoLUosDl9fyuxpNcj">能响应多快的指令</b>。</div>
+      </div>
+      <div class="fitem a" style="--d:.56s" data-page-node-id="XsHaDtTL6n6pVNFAVuNYPX">
+        <div class="fhead" data-page-node-id="M0sdLERiBkDp4Tu0vAS0M3">最外 · 制导环</div>
+        <div class="ftext" data-page-node-id="QIYxI5zUEz6UF029s0EhGh">整条寻的回路最慢：跟踪环时间常数 0.05 s，估计滤波器带宽 7 rad/s（<b data-page-node-id="iFYyJ4ZHYZ1FqQeMIrYygO">约为自动驾驶仪带宽的一半</b>），噪声滤得越干净，制导越平顺。</div>
+      </div>
+    </div>
+    <div class="note cy a" style="--d:.68s;margin-top:26px" data-page-node-id="lEM0S6KFamWD2IbEw1bR7A"><b data-page-node-id="6GFUxj2CniAwAVPfoUlDA5">反过来想：</b>如果自动驾驶仪带宽比舵机还高，舵机跟不上指令，整个内环先抖起来；如果制导环比自动驾驶仪还快，噪声会直接灌进弹体。逐层递减的带宽，就是这套系统的"速度秩序"。</div>
+  </div>
+</section>
+
+<section class="slide" id="t03" data-part="专题 A · 模块协作" data-name="信号接口 · 上" data-page-node-id="MA4Isfbf9hvhMarFPdjnnH">
+  <div class="wrap focus" data-page-node-id="JS2LsJLKWPMR77NYpIouKy">
+    <div class="eyebrow a" data-page-node-id="5mWkxgYImYzARfk6UTMb8y"><span class="line" data-page-node-id="7wBwG2p2vWNXhLtrGwGGjw"></span>专题 A · 模块协作 · 4/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="1zAR8opGDztZrK6vKf9GTk">信号接口一览（上）：指令的来路</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="1vprb5MhTP2R4Bq63ZhuOq">模型里每个模块之间传递什么信号？一张表说清"谁发给谁"。</p>
+    <div class="tbl-wrap a" style="--d:.3s;margin-top:22px" data-page-node-id="U8HxL4uaChV1Rr9achXGdG">
+      <table data-page-node-id="fPBoZuA4Njq1QxE3zTygvo">
+        <tr data-page-node-id="3HLXEqs3qCy8kzcIQCsrJB"><th data-page-node-id="xvvj6HigfYMl3CiruhBvjp">信号</th><th data-page-node-id="IdOJ4wumJ5FhmcRKF2qudQ">从 → 到</th><th data-page-node-id="fFJtkCtVwrBPlOAYKQcZ5Z">含义</th></tr>
+        <tr data-page-node-id="jfXYR6tGlli6owbFwxtU9T"><td class="v" data-page-node-id="V05UHTXg9D5PxMVGPtTXxp">Sigma</td><td data-page-node-id="zMKGj4FHKAnlqcEpNIcgYa">Guidance → 导引头万向节</td><td data-page-node-id="YV6h4gfPwExxjODv0gtFcz">天线的指向指令（搜索扫描 / 锁定时稳住）</td></tr>
+        <tr data-page-node-id="oMl24uyxDWDGauIXJIxK5Z"><td class="v" data-page-node-id="KulHzFCO5fAkss6hegGzE5">λ̇</td><td data-page-node-id="wOFtOLuDs7nGgO5H9FU35k">导引头 → Guidance</td><td data-page-node-id="rHX7MhCDOGb238ooODhwSV">视线角速率估计值，比例导引的输入</td></tr>
+        <tr data-page-node-id="kAqH55EdgARrONwFuIrO6M"><td class="v" data-page-node-id="5Mmeqk1blHmm7zW90R5Vzd">V<sub data-page-node-id="zgdDjUUNRCrA8is1Zz6cIu">c</sub></td><td data-page-node-id="6NgPk9e8c2qRNpEbkBvwBz">导引头 → Guidance</td><td data-page-node-id="ZxUZfGEaQ3j3PXHShHuQwc">接近速度（雷达多普勒测得）</td></tr>
+        <tr data-page-node-id="gvOAUJQIkCTBr0wIo8uh8Y"><td class="v" data-page-node-id="d4nztPVH9VCTMU6fiHi5H6">A<sub data-page-node-id="5k1wIraV8SfibNNb4RXrdE">z</sub>_d</td><td data-page-node-id="ClujkgujijpV1Onh3XcYG6">Guidance → 自动驾驶仪</td><td data-page-node-id="abt9cB6ZjakobV3h0HE44z">法向过载指令（要多大横向加速度）</td></tr>
+        <tr data-page-node-id="y57r3uNrfLD0oyCoDGyZux"><td class="v" data-page-node-id="gzKwAiBtu2R4SB9qaEldHh">Fin</td><td data-page-node-id="x0EUBTA0LDYNXLZUYrMvMX">自动驾驶仪 → 舵机 → 弹体</td><td data-page-node-id="CDbs7qylrbNA83W8IV51x8">舵偏角，执行机构转成真实气动力</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="t04" data-part="专题 A · 模块协作" data-name="信号接口 · 下" data-page-node-id="SdltuQLrR6PIJbJPadlDAf">
+  <div class="wrap focus" data-page-node-id="OmZBeEyxh0fIJ3EW4RRVvA">
+    <div class="eyebrow a" data-page-node-id="Y14sKwdhFeaNPMkS2mOev9"><span class="line" data-page-node-id="CeqMlTtGnjcOrTR1eZkyXf"></span>专题 A · 模块协作 · 5/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="ZaZPZkEdehLeRmN6b93zus">信号接口一览（下）：反馈与状态</h2>
+    <div class="tbl-wrap a" style="--d:.24s;margin-top:22px" data-page-node-id="CbSJOFjCVn1Ys3EihxKPfh">
+      <table data-page-node-id="OjkqD6x6U6YikVqA7HECki">
+        <tr data-page-node-id="iHudKjQBwwYTwLvvtCKxVS"><th data-page-node-id="uW7IbotD1h5vdLezzFTt1d">信号</th><th data-page-node-id="hp7WQd9BGOpwCNj6uxwRR1">从 → 到</th><th data-page-node-id="09HLlEo9qemr6Gc9nhoz7S">含义</th></tr>
+        <tr data-page-node-id="sPQDLqyjJlRodNb5pSmQZw"><td class="v" data-page-node-id="lxp5DGl0uAl9LZud5vYoKe">q</td><td data-page-node-id="kXOCj0iZ9wBAQ2psEumnwB">速率陀螺 → 自动驾驶仪</td><td data-page-node-id="v1Pn0e9eAZTdgy9aCPFC8n">俯仰角速率，阻尼环的输入</td></tr>
+        <tr data-page-node-id="qbAwyPREREZMtRwyT9hiZr"><td class="v" data-page-node-id="3hGTNz2oGQH4xgWFeedSF0">a<sub data-page-node-id="rBzcQCBszI6q8ZyGYQyxpK">z</sub></td><td data-page-node-id="oFRA4ilkF4LvRAxyjHmnGl">加速度计 → 自动驾驶仪</td><td data-page-node-id="cDA0lyxdZSj3DgElIzXyTn">实际法向过载，过载环的反馈</td></tr>
+        <tr data-page-node-id="W2CVaDH2tl4MdhQkGY781K"><td class="v" data-page-node-id="PQxOi2G36EMbM4llBboqoW">α / Mach</td><td data-page-node-id="6HlO1sTNEXfkPjkNc7MS24">运动方程计算 → 调度表</td><td data-page-node-id="sFRywrbUAmCuPZMGsY0Lii">迎角与马赫数，决定气动系数与控制器增益</td></tr>
+        <tr data-page-node-id="4I1OC9g46jkSMbLG2YrhdF"><td class="v" data-page-node-id="0f0Onbeh7XFS3zf4ooIdHd">Acquire</td><td data-page-node-id="oZYiQItRyLkITLbGrQi8EM">跟踪器 → Stateflow</td><td data-page-node-id="8vJ4RnGdMCWiNyY4vN5CAH">"目标已进入波束"事件，触发状态转换</td></tr>
+        <tr data-page-node-id="GA3gJ90qIgKzE5lnpwqQ1k"><td class="v" data-page-node-id="uAWzp9lfVAHKhfe9tDkGJF">Mode</td><td data-page-node-id="nief03XnrVlfbP5VQFc089">Stateflow → 各子系统</td><td data-page-node-id="0TPRXpLBFPUnDHYGQce5DN">当前作战模式（搜索 / 捕获 / 制导），切换控制律</td></tr>
+        <tr data-page-node-id="NhJ7Xc7WPYcSkKNXBODlSU"><td class="v" data-page-node-id="EPW5cqje1qGJ1M8vvSWfDO">弹目位置</td><td data-page-node-id="jq7wqlMZDMSYSZbFtxnfqg">运动方程 → 导引头</td><td data-page-node-id="Ml8GwwtJ521Nk7FMVfKvdt">相对几何关系，重新算出视线角</td></tr>
+      </table>
+    </div>
+    <div class="note gr a" style="--d:.38s;margin-top:22px" data-page-node-id="HnZ47AKGHJfEZxr70Yvy2x"><b data-page-node-id="BtKkdDN0wu4hHL3o9dTMK2">看懂这张表 = 看懂整个模型。</b>凡是"反馈"信号，都从右侧（执行/对象端）流回左侧（感知端）——这正是顶层框图下方三条反馈线的由来。</div>
+  </div>
+</section>
+
+<!-- ============ 专题 B：模块细节 ============ -->
+<section class="slide" id="t05" data-part="专题 B · 模块细节" data-name="气动系数公式" data-page-node-id="nSOD5io6V7QbDeSpY6x1Wq">
+  <div class="wrap focus" data-page-node-id="h3D96OF3Etqa695HiUOMAq">
+    <div class="eyebrow a" data-page-node-id="DgL53R5hOoHy97coYEQBbS"><span class="line" data-page-node-id="HH7kpOpaGBy84p8lIf34rn"></span>专题 B · 模块细节 · 1/3</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="7dmnBf62mBEnLvO69TqbrF">气动系数：表格背后的真实公式</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="J7IhIPmzz73AoUAfWqdfcy">第 10 页的二维表不是凭空来的——它的每一格都由初始化脚本 <code data-page-node-id="Hn80jgJu5WjpADxDBQflSM">aero_guid_dat.m</code> 中的公式生成：</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="Rcs3jT8cHPKy3C7CCEHFt2">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="9YueY7gz6PpMuYFtl4AeQC">
+        <div class="fhead" data-page-node-id="QjPPTNzV2nTf9PcAHUOJQC">法向力系数<span class="fsub" data-page-node-id="4F3WdyqFGwKxzpyGG2xgyS">与迎角、马赫有关</span></div>
+        <div class="ftext" data-page-node-id="pFri3tjluTO5EE4997alDO">迎角的<b data-page-node-id="fEMPCeiptLqtACmlYyaAc6">三次项</b>表示：迎角越大，升力增长越慢（气流失速），这是非线性气动特性最直接的体现。</div>
+        <div class="formula" data-page-node-id="d5UqBBYFti6c23LGqA9gtE">C<sub data-page-node-id="NABPPEVqwQAyPErZ1G2ouG">zα</sub> = a·α³ + b·α|α| + c·(2 − M/3)·α</div>
+      </div>
+      <div class="fitem a" style="--d:.4s" data-page-node-id="iE01JulPiGbZd4Kc5II8uJ">
+        <div class="fhead" data-page-node-id="HAzHYy6dJaxdOLQv4mfLyK">俯仰力矩系数<span class="fsub" data-page-node-id="eEhfJEyaRbUTy380ZieGtQ">决定静态稳定性</span></div>
+        <div class="ftext" data-page-node-id="fnoBvjAuaCJ7ynZQA616Yj">负斜率表示"扰动能自动拉回"（静稳定）；括号里的马赫项说明<b data-page-node-id="onCAyioiRm73nNR5GvX6ha">跨声速区</b>气动特性会明显变化。</div>
+        <div class="formula" data-page-node-id="c90cTTaA6pMwX82vCDPDXg">C<sub data-page-node-id="H33ybgq0GLngQLnsb7jfkq">mα</sub> = a·α³ + b·α|α| − c·(7 − 8M/3)·α</div>
+      </div>
+      <div class="fitem a" style="--d:.54s" data-page-node-id="wzZJLup0affUagPolxJrQi">
+        <div class="fhead" data-page-node-id="UtNsxxDFPbRBgBCdGaHrw5">舵效与阻尼<span class="fsub" data-page-node-id="Co7reJUe2c2xuIdW5N6FrL">执行与控制的基础</span></div>
+        <div class="ftext" data-page-node-id="gchFzOklhRzOaTOKadumot">舵偏产生力矩（<b data-page-node-id="tVJISa7OGYhabhBVPszWZt">舵效</b>），俯仰角速率抑制力矩（<b data-page-node-id="lmCPeiQrIDxJHypjcGXgeS">气动阻尼</b>）；轴向力系数近似常值 −0.3。</div>
+        <div class="formula" data-page-node-id="5wmGVXbFbmWNS4qEpBNWFg">C<sub data-page-node-id="AJWFit72ZDos1FUdZ8sm42">mδ</sub> = −0.206/°　C<sub data-page-node-id="t1w3N9uRqJBiVXgiYjP44W">mq</sub> = −1.719</div>
+      </div>
+    </div>
+    <div class="note a" style="--d:.66s;margin-top:26px" data-page-node-id="rEj98V0Ue472FXCR9DeUca"><b data-page-node-id="EfUW6WOFCU9Q2g2huMd8Jh">为什么要用表+插值？</b>公式虽简洁，但立方项计算昂贵且跨马赫数域变化复杂。工程上预先算好网格、运行时查表插值，<em data-page-node-id="DpMiFfCzlYmQ13l8GQNqnl">既精确又快速</em>。</div>
+  </div>
+</section>
+
+<section class="slide" id="t06" data-part="专题 B · 模块细节" data-name="视线角速率估计" data-page-node-id="ukD8JKbBCG0LSUfFMbW3r1">
+  <div class="wrap focus" data-page-node-id="0YycoKSJA4g521a9uO73Uc">
+    <div class="eyebrow a" data-page-node-id="GNEBXEFR4veZGGtj2sINkQ"><span class="line" data-page-node-id="OChgYNvSeThWo7xLRccCgz"></span>专题 B · 模块细节 · 2/3</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="6DgEocfff5VRz8VLw1YZ8Y">视线角速率：两路信号合出来的</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="47oDv0pgSvv7hOffTlEje2">整个制导系统最关键的度量，不能直接量出来，只能<b data-page-node-id="VFJHNKPE5QGVtPpPVpMz61">估计</b>——因为它受弹体自身转动的污染：</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="mjGTexWXQqzf4so6n04VU6">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="ovToTvA1n35FX6ixdFHuul">
+        <div class="fhead" data-page-node-id="XI21DImYDi1JTU7E4YwKs0">问题<span class="fsub" data-page-node-id="HekxnUQKSpW5d9gmXCmfCe">弹体在转，天线也在转</span></div>
+        <div class="ftext" data-page-node-id="fmqMit9tCM2rVCjTTt7e3f">天线角速度是"弹体转动 + 真实视线转动"的混合。如果直接当真，制导律会把<b data-page-node-id="HeqljgBuELH4dq1dnOi13P">弹体自己的抖动</b>当成目标机动，越追越乱。</div>
+      </div>
+      <div class="fitem a" style="--d:.38s" data-page-node-id="n0ruQJe5EMM754F9Z0vJVs">
+        <div class="fhead" data-page-node-id="L6cScbLAR8HkfpSpXML6a2">解法①<span class="fsub" data-page-node-id="yv5hYKlMTuknC35PSxfeG0">稳定环</span></div>
+        <div class="ftext" data-page-node-id="8ES35eHFd364oNqlShf6vv">稳定环用速率陀螺测量弹体转动，把天线指向<b data-page-node-id="6sEmZUooxOcGjyc6iHoN6f">惯性空间稳下来</b>——先把"弹体抖动"这一路抵消掉。</div>
+      </div>
+      <div class="fitem a" style="--d:.5s" data-page-node-id="BVRYjkafKk4DfLPmZtDi0F">
+        <div class="fhead" data-page-node-id="9DJv66OOYA6oTZWRHIHH9y">解法②<span class="fsub" data-page-node-id="O9nNV18cQZJheNM1HMj3Ev">合成与滤波</span></div>
+        <div class="ftext" data-page-node-id="7JXTAAKbR0JLJHB9nFyIhe">视线角速率 = 陀螺测得的天线角速率 + 接收机测得的跟踪误差变化率，两者求和后经<b data-page-node-id="Kwj6sJd9ir2CQURR0xQ05g">低通滤波</b>输出平滑估计。</div>
+      </div>
+      <div class="fitem a" style="--d:.62s" data-page-node-id="4KEekR5CZXwUDIPCSe8iNh">
+        <div class="fhead" data-page-node-id="j7vIVuM9UdLT17J5VR8KZ2">配比<span class="fsub" data-page-node-id="CLK7KcBcJiCxNoGz6ygp6D">带宽的折中</span></div>
+        <div class="ftext" data-page-node-id="YyNzDoO6TCMRHHzd2aQ04b">滤波器带宽取 <b data-page-node-id="c9xnICUaMCn6eqAmZfGFlv">7 rad/s = 自动驾驶仪带宽的一半</b>——滤得太宽噪声钻进来，滤得太窄延迟害了制导律。取半是经典经验值。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="t07" data-part="专题 B · 模块细节" data-name="寄生反馈为什么危险" data-page-node-id="7lhFHgQQZ46ItNIWQ9ppyQ">
+  <div class="wrap focus" data-page-node-id="rNENvhK2tk0cFCHnZmCRwp">
+    <div class="eyebrow a" data-page-node-id="Oty3jRLPBB8tsLX7OviVw2"><span class="line" data-page-node-id="0C5DhjhPReBPgKo0NJijkj"></span>专题 B · 模块细节 · 3/3</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="F3wLxDj1FPD0BbImAYbjWd">寄生反馈：最危险的"悄悄话"</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="6LBweJRylp90LO50vyrNfj">天线罩像差这类效应，可怕在它<b data-page-node-id="IWo1O6re9ojeMIhC1ME54y">偷偷把输出喂回输入</b>，形成本不该存在的第三条回路：</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="2zPN4jEy864vP34KGPDjFK">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="aMvvXlwt0osLYCDbDEbtjQ">
+        <div class="fhead" data-page-node-id="IefLvYNgDBrxRjpkHKbpVb">来源<span class="fsub" data-page-node-id="bDuKORZsIONwIZRqYCfa59">物理上不可避免</span></div>
+        <div class="ftext" data-page-node-id="ypkxKkzhg4qWDA1Oz82oRd">天线罩的曲面让回波发生<b data-page-node-id="EpSE88b9AodLsVR51kHWs1">折射</b>，导引头读到的视角与真实视角有偏差，而且偏差随天线转角变化。</div>
+      </div>
+      <div class="fitem a" style="--d:.4s" data-page-node-id="dzMrIvsszYGgn63qxTMgMP">
+        <div class="fhead" data-page-node-id="dpqCerV2oNBTElEDYSG7NE">危害<span class="fsub" data-page-node-id="eEeXb7BWshTpYfLijqVgZR">虚假信号闭环</span></div>
+        <div class="ftext" data-page-node-id="pNtwryEryJYRXkqJOGvvRJ">视角偏差 → 制导律以为目标在动 → 发出多余的过载指令 → 弹体转弯 → 视线又变 → 偏差继续放大。<b data-page-node-id="9GzE7qyfOpzUDhFiYunEOA">正反馈的雪球</b>，可能振荡甚至失稳。</div>
+      </div>
+      <div class="fitem a" style="--d:.54s" data-page-node-id="ha2CI3JObFnMhh6SlWzz71">
+        <div class="fhead" data-page-node-id="JelHPB6N8q8QNaxh77x6ci">建模<span class="fsub" data-page-node-id="zxaC2LRBnPGrs8new7le5w">一页纸的近似</span></div>
+        <div class="ftext" data-page-node-id="KtFMvWMtg2uAjDYX9BU9ck">用增益 <code data-page-node-id="FJVBC9bOibvpiEUtrX4dNw">K<sub data-page-node-id="VI1UEPbKjB95PFN34gCFle">r</sub> = −0.02</code> 把"万向节角 → 视角误差"近似为线性关系，塞进跟踪环里参与仿真。</div>
+      </div>
+    </div>
+    <div class="note gr a" style="--d:.66s;margin-top:26px" data-page-node-id="q37Bz6qADGJn9dTxxlDul4"><b data-page-node-id="BEoOvW9BBUbCTlm3nVhDay">它存在的意义：</b>工程上第一版设计往往"太干净"。把像差、陀螺过载敏感性等<b data-page-node-id="ovFX8dDcjMIHSUKMGFBrFg">不完美</b>装进模型，才能检验跟踪器与滤波器是否真的<b data-page-node-id="ALYWLe9qOvZYhChAkDQhwV">鲁棒</b>——这也是本示例的教学价值所在。</div>
+  </div>
+</section>
+
+<!-- ============ 专题 C：Stateflow 状态机详解 ============ -->
+<section class="slide" id="t08" data-part="专题 C · Stateflow 状态机详解" data-name="Stateflow 是什么" data-page-node-id="DzaWpjG4j3A84mF30ee4XN">
+  <div class="wrap focus" data-page-node-id="rGTk5GWJ8H5vivfHnx7U7f">
+    <div class="eyebrow a" data-page-node-id="L54CNID7PE6Uu2BtOd29rA"><span class="line" data-page-node-id="mSr9TwdHkeT08d9DjTQDXR"></span>专题 C · Stateflow 状态机详解 · 1/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="tlZmGOSHBBIz06yFFG62ks">Stateflow：给导弹装上"大脑皮层的状态"</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="zKWRCgHirU7BiyLGnqSHYM">Simulink 擅长描述"连续的信号流"；但"现在该搜索还是该攻击"是<b data-page-node-id="eF0QBS965aE3bEzPQWzw0F">离散的状态</b>——这正是 Stateflow 的舞台。</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="L9fNeD5CJ75dIlQ90Scs8p">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="SAKWud07H0JZKjtJGn6ejC">
+        <div class="fhead" data-page-node-id="iXMpgvjQmxaYNZ7QLqEWgC">状态 vs 流程<span class="fsub" data-page-node-id="x1rS1THYGaPtij2DMQyKX7">一个本质区别</span></div>
+        <div class="ftext" data-page-node-id="QpX7LzpbKQ1D7KGc9BYyvu"><b data-page-node-id="onmVYs1XLTbQgyriETCgL2">流程</b>按顺序走完就结束；<b data-page-node-id="Bqvsnjtk2q9HLUqExYHWFS">状态</b>是"停留并等待"——只要不满足离开条件，就一直守在这个状态里做事。</div>
+      </div>
+      <div class="fitem a" style="--d:.38s" data-page-node-id="Imw4wJIwKTHwId5H9T18HZ">
+        <div class="fhead" data-page-node-id="784cJoGdDzCIxjq7K7Ej39">事件驱动<span class="fsub" data-page-node-id="chsuRGDpeFmq7MtHGMqb3g">谁来扳动开关</span></div>
+        <div class="ftext" data-page-node-id="qtqBGvs3Zx5cPXiSSSIEhk">状态之间的转换由<b data-page-node-id="xwg21LIIwFLhEbQQhrU4vC">事件</b>或<b data-page-node-id="OqDRffBGxsh3K1d01ECGrN">条件</b>触发，例如"目标进入波束"→ 捕获事件。事件可以从 Simulink 传进来，也可以在图内部产生。</div>
+      </div>
+      <div class="fitem a" style="--d:.5s" data-page-node-id="j5bY2XoFCxj3YrIaHGaDBV">
+        <div class="fhead" data-page-node-id="2XpkiVxiBxcD3lv1FzMlD1">本模型的图表<span class="fsub" data-page-node-id="1StoDmNCRTpmuxYwfcqpC2">100 Hz 的指挥官</span></div>
+        <div class="ftext" data-page-node-id="giybgjq7AoiA4GIIHDQyH6">Guidance 子系统中的状态图名为 <code data-page-node-id="8WMJIOBryPFF5tqQcNoSQG">Guidance Processor (Updated @100Hz)</code>，它<b data-page-node-id="OCmCtHKE4XZrasrwtJEtA9">每 0.01 秒</b>被唤醒一次，检查事件、更新模式、下发新指令。</div>
+      </div>
+      <div class="fitem a" style="--d:.62s" data-page-node-id="1z34oTDdxqBJwP4OV4ApwS">
+        <div class="fhead" data-page-node-id="dGmqZTmysSYJ5m9iBQHE53">一图两用<span class="fsub" data-page-node-id="FpEWZsceKoYGCmBYLZkBba">制导 + 引信</span></div>
+        <div class="ftext" data-page-node-id="JZKmrjQjiaKIt0nqJCNbUu">图中同时管理着两件事：<b data-page-node-id="7WezNmhLn7BmYcfayslDki">制导状态机</b>（搜索/捕获/制导）与<b data-page-node-id="PYVH5PzdhY6QaNC8LuDkxk">引信状态机</b>（待机/解锁）——下一页开始逐个拆开看。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="t09" data-part="专题 C · Stateflow 状态机详解" data-name="制导状态详解" data-page-node-id="k3QgOrTTKbN0bxZhGvmeW9">
+  <div class="wrap focus" data-page-node-id="oBlLIEDpJBtBthimDkiLlr">
+    <div class="eyebrow a" data-page-node-id="57njcHYCFyQ9wQEAfVeDKe"><span class="line" data-page-node-id="vnSh6YaGgvz7dDTFmyybR8"></span>专题 C · Stateflow 状态机详解 · 2/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="ekjO3Q3l0269drodGfTTA5">制导状态机：四个状态一次讲清</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="UAQ5F9TA2UtEK0bEf1Gu3h">仿真的 3.46 秒里，状态机完整经历了一轮循环——表里每一行，都是"画面里真实发生过的事"：</p>
+    <div class="tbl-wrap a" style="--d:.3s;margin-top:22px" data-page-node-id="hW1i8MCmD2YvwmpkVzQqEK">
+      <table data-page-node-id="jJ1EpyDx5QFzqli1yRpt6k">
+        <tr data-page-node-id="dNdOraNslG51dV1IVoCxCS"><th data-page-node-id="gosA5aa56esJzbbSXTCwCS">状态</th><th data-page-node-id="ozwAJ4BCc8AYauB97avbBM">在做什么</th><th data-page-node-id="X3eT3AnyZD0c1crvS2PIVg">何时离开</th></tr>
+        <tr data-page-node-id="PlD9ndNR2qDijkE4hGcmDI"><td class="v" data-page-node-id="FYmNNoOinRH9M3fSEDdDvG">Target_Search<br data-page-node-id="Lw1Xanm3WohmC8jY6aO77O">搜索</td><td data-page-node-id="T1FKIjGQES5xbFAQiqDrqP">直接控制万向节按规律扫描（Sigma 指令），在空域里"找"目标</td><td data-page-node-id="6EHFHdVjDLjv3hv3QZFQwl">目标进入波束 → 捕获事件发起（本例 0.69 s）</td></tr>
+        <tr data-page-node-id="6Ms0ZIUNns4AFRZHz5u6xX"><td class="v" data-page-node-id="WDjgCCF9hLlmKA3ULtvA3c">Target_Look<br data-page-node-id="HcStUAUEhYBGP0ZBHIoROs">凝视</td><td data-page-node-id="AiQdBv5ARnCxcW8t6oeZBb">短暂确认：目标已被稳定跟踪；引信仍处 Inert（未解锁）</td><td data-page-node-id="QH4IiHVjy5rQlYhkB3e6An">确认完成 → 进入闭环制导</td></tr>
+        <tr data-page-node-id="GpkUT5AalG7IAOOxhViawE"><td class="v" data-page-node-id="68M8TDPyqZTBODiXrRVFLJ">Guided<br data-page-node-id="oTdBXiiHFJuYSCZgcPUPFW">闭环制导</td><td data-page-node-id="bI3W1dYzDub4GcfjdHVDBA">启用比例导引，向下游发过载指令；同时通知引信"可以解锁了"</td><td data-page-node-id="dLfWlhY8fERHxqk3NF3GgP">命中（3.46 s）或丢失锁定/中止</td></tr>
+        <tr data-page-node-id="V7jpR1YyjvZFJdtOJChvCX"><td class="v" data-page-node-id="mqqRjvk7k12qKJlYOCZEjJ">Abort<br data-page-node-id="BCDXKw7SdHXOc4FENcwgMJ">中止</td><td data-page-node-id="1ogmPhZD1RNw1gkAEgI3Nl">放弃当前攻击：停止制导指令，系统进入安全状态</td><td data-page-node-id="j80Q1497aBo1YUjVZa3bcX">人为干预或按失效逻辑复位</td></tr>
+      </table>
+    </div>
+    <div class="note cy a" style="--d:.4s;margin-top:22px" data-page-node-id="dwtZFR33y1DikF55cPdYVx"><b data-page-node-id="KaoA6ARfeBbQDhDXmTjp3k">对照第 19 页时间线：</b>0.69 s = Search→Look 的瞬间，0.89 s = Look→Guided 的瞬间。状态机的每一步，都精确对应仿真曲线上的一次"拐点"。</div>
+  </div>
+</section>
+
+<section class="slide" id="t10" data-part="专题 C · Stateflow 状态机详解" data-name="事件如何传递" data-page-node-id="CKkOTcgOsdRA31336OzTTX">
+  <div class="wrap focus" data-page-node-id="K1wBPDqctOXO6G2Yd82a8m">
+    <div class="eyebrow a" data-page-node-id="NSb0epCP48vFG6cBRMzZmF"><span class="line" data-page-node-id="RaK8qOzAAuNFxczyU7PEn3"></span>专题 C · Stateflow 状态机详解 · 3/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="j5pmlufLB0bm9plOE79LSu">事件与模式：状态机怎么"听到"外界</h2>
+    <div class="flatlist" style="margin-top:22px" data-page-node-id="CeKQDr1ui8THAPmhBEaD99">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="brKZrDxOdvTpFCFJKsOA0V">
+        <div class="fhead" data-page-node-id="0TVbxrKiCHHhbDlh8NZZXd">两条听觉通路<span class="fsub" data-page-node-id="Ext8ahNAoSo7m2izB4b2Bf">Simulink ↔ Stateflow</span></div>
+        <div class="ftext" data-page-node-id="8r3ZdxKGikPwBUu4ECpsFG">事件可以从 <b data-page-node-id="LWfIiAu49AfuDUnbvNQpbH">Simulink 模块</b>（如比较器检测到"目标进波束"）触发转换，也可以在 <b data-page-node-id="sd39Uk7osypomrn2zt6mmL">图内部</b>由状态逻辑自己产生（如定时确认后自触发）。双向都能传。</div>
+      </div>
+      <div class="fitem a" style="--d:.38s" data-page-node-id="yDL51gLpUK5swKeuzjNGhq">
+        <div class="fhead" data-page-node-id="Aoo88Mcg8VRIMGafGyU5Lb">Acquire<span class="fsub" data-page-node-id="EEdiuEMhnmHCowO3xIUU9x">捕获事件</span></div>
+        <div class="ftext" data-page-node-id="9VlcX5V6aPTXG8F7DChluo">跟踪器在目标进入 10° 波束宽度内时拉起<b data-page-node-id="5b4A2DH7f0HIgPDlXYHr2c">目标捕获</b>标记，作为事件喂给状态机，触发 Search → Look 的切换。</div>
+      </div>
+      <div class="fitem a" style="--d:.5s" data-page-node-id="BL5neBYVheyHC8Ie4gq3fg">
+        <div class="fhead" data-page-node-id="8mSiN3mFD7jxdWnJebBH03">Mode<span class="fsub" data-page-node-id="luCgK35EyIIuWFDugCq6zx">模式信号</span></div>
+        <div class="ftext" data-page-node-id="8oKLW7a9Xcyt7EEHXN3lt1">状态机把当前模式通过 <code data-page-node-id="jMmG4rSE9hnAsUrjIwO1oq">Mode</code> 信号广播给整个模型；各子系统按模式切换行为——例如搜索时不启用制导律，闭环后才允许大过载机动。</div>
+      </div>
+      <div class="fitem a" style="--d:.62s" data-page-node-id="S0EEtkuqix7zpEWVS41Bvh">
+        <div class="fhead" data-page-node-id="WpyDUZKjjg213U8yq5elC2">100 Hz 步进<span class="fsub" data-page-node-id="EKzHYYQOJ8LrJM9hsfNuOV">离散与连续的桥梁</span></div>
+        <div class="ftext" data-page-node-id="8oLfqlnOGoV4CLzR7IYWPa">连续仿真中，状态图每 0.01 s 被采样一次：检查事件、判定条件、更新输出。频率足够高，模式切换对整体回路"几乎无感"，但逻辑却清晰可控。</div>
+      </div>
+    </div>
+    <div class="note a" style="--d:.72s;margin-top:26px" data-page-node-id="O19xCEha1mSadr9jFKoQCz"><b data-page-node-id="uiyKGDziQrjeSDu0PUl8Ph">为什么值得用状态机？</b>所有作战模式、所有异常路径一笔一画可见、可仿真、可测试——比埋在 if-else 脚本里强得多。</div>
+  </div>
+</section>
+
+<section class="slide" id="t11" data-part="专题 C · Stateflow 状态机详解" data-name="引信保险逻辑" data-page-node-id="bFeEwjoQDnCMcLROMgAV7J">
+  <div class="wrap focus" data-page-node-id="qd2MD2BmAwOp78VoWvHpJh">
+    <div class="eyebrow a" data-page-node-id="l6MczQ10cZSD89112I9Yp4"><span class="line" data-page-node-id="uYG7BO4OgMrKwRGLzId2Pc"></span>专题 C · Stateflow 状态机详解 · 4/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="9GzzfETC0KBF1wHIAvQ0O7">引信状态机：两条命的保险丝</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="Qx7K0Lg3QdjWV0qaJprawt">为什么搜索阶段不解除保险？因为那时候根本<b data-page-node-id="jtJB6OeKEOZ4w03vpxyW1w">不该爆炸</b>——这是真实导弹的安全设计，模型里也原样保留了：</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="amJ8V51Cz8GUFT3Fm5Zhkj">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="L9hNIsKyYQG8l0FhZvbe9i">
+        <div class="fhead" data-page-node-id="d3Op8S72HrhZ2U6zMEBXb3">Inert 待机<span class="fsub" data-page-node-id="PZWmi5LSUAHENSTUwpm5D4">出厂状态</span></div>
+        <div class="ftext" data-page-node-id="b0lBWrvvhHlTY1GXRluBGl">战斗部处于<b data-page-node-id="RExdmTlv8xOszewg4XBTFQ">保险状态</b>，即使误触发也不会起爆。搜索、凝视阶段一直待机——此时目标可能只是杂波。</div>
+      </div>
+      <div class="fitem a" style="--d:.4s" data-page-node-id="ca2eD9rgrHuGQFB1h5DGgt">
+        <div class="fhead" data-page-node-id="3PcaXvLeaeQ5dFwyWnTqpU">Armed 解锁<span class="fsub" data-page-node-id="NqJIzYeH0xpMrgJgiDr0qY">只在闭环制导后</span></div>
+        <div class="ftext" data-page-node-id="boDlvAuRFunpTydggJCEkQ">状态机进入 <b data-page-node-id="z7CUwfBdTnhzT6TeAD6SNU">Guided</b>（闭环制导真正启动）时，才允许切到 <b data-page-node-id="HnncrNgwUgCI5QEj4lGmtV">Armed</b>——此时导弹已确凿锁定目标，错过即失去机会。</div>
+      </div>
+      <div class="fitem a" style="--d:.54s" data-page-node-id="ndW02AAtUzZdCHdlLtBUWr">
+        <div class="fhead" data-page-node-id="eSDQYfD0DmXwUfBcissNqc">安全的哲学<span class="fsub" data-page-node-id="arV69b2jz08IiaEEkPhDu1">与作战状态联动</span></div>
+        <div class="ftext" data-page-node-id="6sE0fXT0CDPCX66waQd11K">保险不是独立逻辑，而是<b data-page-node-id="wOUFEY7MZ45U0yo5CzwRlP">制导状态的下游</b>：攻击未确认 → 绝不解锁。这套"状态驱动安全"的写法，在真实弹上沿用了数十年。</div>
+      </div>
+    </div>
+    <div class="note gr a" style="--d:.66s;margin-top:26px" data-page-node-id="J8uGxRXGUVJUnsI5dJ1Xlu"><b data-page-node-id="qufnokZvAkeOmJQgb00HvY">图 3-7（第 15 页）下方部分</b>就是它：Inert ⇄ Armed 双状态，与上方的制导状态机共用同一个 Stateflow 图。</div>
+  </div>
+</section>
+
+<section class="slide" id="t12" data-part="专题 C · Stateflow 状态机详解" data-name="异常处理" data-page-node-id="rZbCl1VMxaZmY1h8396Akw">
+  <div class="wrap focus" data-page-node-id="kQUx2VOXEBBxARUxZPy4hQ">
+    <div class="eyebrow a" data-page-node-id="0FN3crps4gheI5QIAAieQn"><span class="line" data-page-node-id="rteR059duDFGqMxUETo2Go"></span>专题 C · Stateflow 状态机详解 · 5/5</div>
+    <h2 class="a" style="--d:.08s" data-page-node-id="ytCsBUNd7YwB41bW2QNynP">异常处理：打不中目标怎么办</h2>
+    <p class="lead a" style="--d:.18s" data-page-node-id="AwUNnzg8GPf8EMODDUaT3C">官方文档特意点明：状态机的价值就在于"能快速定义全部作战模式"——包括<b data-page-node-id="0VG1bVZUGu2amD0lM34WJD">失败路径</b>。模型里预演了这些情况：</p>
+    <div class="flatlist" style="margin-top:26px" data-page-node-id="Wg2mVFjN1BGz7rJs1krtYw">
+      <div class="fitem a" style="--d:.26s" data-page-node-id="pVPX0w4BcZFsbR6ppo6fSG">
+        <div class="fhead" data-page-node-id="y8GgA498du3koeKs4D17uq">丢失锁定<span class="fsub" data-page-node-id="P3NDRBTkAD8glSM9puIBCQ">Loss of Lock</span></div>
+        <div class="ftext" data-page-node-id="DKa4FWTFYMGpnFEZnjlz8J">跟踪中目标突然从波束消失（机动逃逸 / 电子干扰）——状态机定义好<b data-page-node-id="SjJJvxnvRfvfOmycleGOU2">降级动作</b>：先重新搜索，搜不到就进入中止路径。</div>
+      </div>
+      <div class="fitem a" style="--d:.4s" data-page-node-id="6aIwndFn1hU1ZTqeHJ5ttn">
+        <div class="fhead" data-page-node-id="CsniXBiYIWRQlbuh3z1aCC">搜索失败<span class="fsub" data-page-node-id="j5q5xOG1AcvCDbyRP9jUnT">时间耗尽</span></div>
+        <div class="ftext" data-page-node-id="BHXpFZ4ScdBKFm0Oo48pR3">搜索持续超时仍未捕获目标——不能无限扫下去，按预置逻辑处理超时，避免带着错误目标进入攻击。</div>
+      </div>
+      <div class="fitem a" style="--d:.54s" data-page-node-id="KTFgz2riS0wShOJ8cqLhcT">
+        <div class="fhead" data-page-node-id="KNs55E78UBp3WLYfZvBjSb">中止与复位<span class="fsub" data-page-node-id="bI08hZgRatkPa1nQaLazb0">全身而退</span></div>
+        <div class="ftext" data-page-node-id="WFC9z4Dqhtf0R3c5AGlg4I"><b data-page-node-id="t5dvnEK4wP6CYdnM6gHvLj">Abort</b> 状态把系统带回安全态：停止制导指令、引信回到 Inert——即使脱靶，也要让导弹"可预测"地结束飞行。</div>
+      </div>
+    </div>
+    <div class="note a" style="--d:.66s;margin-top:26px" data-page-node-id="Un2UAYEbr7CqCoECPrFTEy"><b data-page-node-id="HDxY57vpXi6rj01CkvhEEv">这就是"模式思维"的力量：</b>把正常、异常、边界全部显式建模，一共也就十几个状态——复杂系统里最难管的"边角情况"，在状态图里一目了然。</div>
+  </div>
+</section>
+<!-- ============ 30 结语 ============ -->
+<section class="slide finale" id="s30" data-part="尾声" data-name="下一步" data-page-node-id="fg42lortNlrvIkHxVk8x3s">
+  <div class="wrap" data-page-node-id="1QO92giOLRuKPUwGJ5jXR1">
+    <div class="eyebrow a" style="justify-content:center" data-page-node-id="EyDqSzdLorz4sF8FaBJX5j"><span class="line" data-page-node-id="yKAw0GYdWc4zfoVedpYQVc"></span>尾声<span class="line" style="background:linear-gradient(270deg,var(--cyan),transparent)" data-page-node-id="fEmkfQ7eK6C4hWoERoWRZ4"></span></div>
+    <h2 class="a" style="--d:.1s" data-page-node-id="YKGSZmGJQxp0nWeqPpuqgk">接下来，轮到你了</h2>
+    <div class="note cy a" style="--d:.26s;max-width:760px;margin:26px auto 0;border-radius:16px;border-left:none;border:1px solid rgba(94,203,247,.3);text-align:left" data-page-node-id="xqk0E6RrN1oXxdqaFhfsUm">
+      <b data-page-node-id="iUVfKG0dxK24XA2imCd274">建议的实训路径：</b>在 <code data-page-node-id="Xo4rpoF2UU9mAQ2y5HMPIo">Src/</code> 中建立模型副本 → 亲手运行仿真，复现本页的性能曲线 → 然后尝试修改<b data-page-node-id="giCWVHqF5AzleTSAaVEeMl">导引律增益 N</b>、<b data-page-node-id="bAKZlRCeKhWY0TOAdxG8b1">目标机动方式</b>或<b data-page-node-id="nTzGUwzz22ACNWTDjEZlhb">天线罩像差系数</b>，观察脱靶量与稳定性的变化——那就是属于你自己的设计实验。
+    </div>
+    <p class="body a" style="--d:.42s;margin-top:34px;color:var(--faint);font-size:14px;line-height:2" data-page-node-id="YPEhA4vrCR9jtRCYuiBJSK">
+      导弹制导与控制系统实训 · 示例项目介绍页 · 版本 2<br data-page-node-id="aTFTwHqkqWeELQF8AHBjSL">
+      内容转述自 MathWorks 官方示例文档 · 页面由实训助手（ZCode）整理生成 · 2026-09-01
+    </p>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  document.documentElement.classList.add('js');
+  // 静态截图模式：跳过动画并禁用星空，保证内容在任何抓取时刻都完全可见
+  var STATIC = /[?&]static=1/.test(location.search);
+  if (STATIC) document.documentElement.classList.add('static');
+  var deck = document.getElementById('deck');
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var rail = document.getElementById('rail');
+  var counter = document.getElementById('counter');
+  var partLabel = document.getElementById('partLabel');
+  var hint = document.getElementById('scrollHint');
+  var total = slides.length;
+
+  // 圆点导航
+  var dots = [];
+  slides.forEach(function(s, i){
+    var b = document.createElement('button');
+    b.setAttribute('data-tip', (i+1) + ' · ' + (s.getAttribute('data-name') || ''));
+    b.setAttribute('aria-label', '跳转到 ' + (s.getAttribute('data-name') || ('第' + (i+1) + '页')));
+    b.addEventListener('click', function(){
+      slides[i].scrollIntoView({behavior:'smooth'});
+    });
+    rail.appendChild(b);
+    dots.push(b);
+  });
+
+  function setActive(idx){
+    dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
+    var n = String(idx+1); if (n.length < 2) n = '0' + n;
+    counter.innerHTML = '<b>' + n + '</b> / ' + total;
+    partLabel.textContent = slides[idx].getAttribute('data-part') || '';
+    if (hint) hint.style.opacity = (idx === 0) ? '1' : '0';
+  }
+
+  // 进场动画 + 当前页判定
+  var current = 0;
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          // 静态截图模式：页码/圆点由锚点定位代码唯一控制，IO 不再竞写，
+          // 避免无头渲染虚拟时间下滚动时序把计数器写成中间状态
+          if (!STATIC) {
+            var idx = slides.indexOf(e.target);
+            if (idx !== -1) { current = idx; setActive(idx); }
+          }
+        }
+      });
+    }, {root: deck, threshold: 0.55});
+    slides.forEach(function(s){ io.observe(s); });
+  } else {
+    slides.forEach(function(s){ s.classList.add('in'); });
+  }
+
+  // 顶部进度条
+  var bar = document.getElementById('progress');
+  deck.addEventListener('scroll', function(){
+    var max = deck.scrollHeight - deck.clientHeight;
+    bar.style.width = (max > 0 ? (deck.scrollTop / max * 100) : 0) + '%';
+  }, {passive:true});
+
+  // 键盘翻页
+  function go(step){
+    var t = slides[Math.min(total-1, Math.max(0, current + step))];
+    if (t) t.scrollIntoView({behavior:'smooth'});
+  }
+  window.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); go(1); }
+    else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); slides[0].scrollIntoView({behavior:'smooth'}); }
+    else if (e.key === 'End') { e.preventDefault(); slides[total-1].scrollIntoView({behavior:'smooth'}); }
+  });
+
+  // 静态模式：定位到 URL 锚点对应的页并立即同步状态（无平滑滚动）
+  // only=1（无头渲染专用）：直接移除目标页之外的所有 slide——页面零滚动，
+  // 截图落点 100% 确定，彻底规避虚拟时间下滚动/锚点/重排的竞态
+  if (STATIC) {
+    var m = location.hash.match(/^#((?:s|t)\d+)$/);
+    var target = m && document.getElementById(m[1]);
+    if (target) {
+      var idx = slides.indexOf(target);
+      if (idx > -1) { current = idx; setActive(idx); }
+      if (/[?&]only=1/.test(location.search)) {
+        slides.forEach(function(s){ if (s !== target && s.parentNode) s.parentNode.removeChild(s); });
+        deck.scrollTop = 0;
+        deck.style.scrollBehavior = 'auto';
+        var bar0 = document.getElementById('progress');
+        if (bar0) bar0.style.width = (((idx + 1) / total) * 100) + '%';
+      } else {
+        deck.style.scrollBehavior = 'auto';
+        var jump = function(){ deck.scrollTop = target.offsetTop; };
+        jump();
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(jump); }
+        window.addEventListener('load', function(){ jump(); setTimeout(jump, 50); });
+      }
+    }
+    slides.forEach(function(s){ s.classList.add('in'); });
+  }
+
+  // 自检模式（?static=1&check=1）：程序化验收，三项全查——
+  // ①纵向越界：内容/图片不得超出所在 slide 的 100vh；②横向越界：wrap/图片/表格不得超出视口右缘；
+  // ③黄金区对位（ALIGN，仅 >1100px 宽）：.wrap.focus 左缘必须等于 max(0,33.5vw-470)±3px，
+  //   内容列中心必须 ≤42vw+24px——防止版式被"居中化"回归（v2.4 事故，见 Rules/webshowcase_layout.mdc）。
+  // 任何页面改动后必须复跑且结果为 CHECK_OK；禁止为过检而修改本检查逻辑（只能改版式）。
+  if (/[?&]check=1/.test(location.search)) {
+    var issues = [];
+    var vw = window.innerWidth;
+    slides.forEach(function(s, i){
+      var wrap = s.querySelector('.wrap');
+      if (!wrap) return;
+      var sTop0 = s.getBoundingClientRect().top; // slide 原点（文档坐标）
+      var vh = s.clientHeight;
+      var r = wrap.getBoundingClientRect();
+      var relTop = r.top - sTop0;
+      var relBottom = r.bottom - sTop0;
+      if (relTop < -2 || relBottom > vh + 2) {
+        issues.push((s.id || i) + ':t' + Math.round(relTop) + ',b' + Math.round(relBottom) + ',vh' + vh);
+      }
+      if (r.right > vw + 2) issues.push((s.id || i) + ':xR' + Math.round(r.right - vw));
+      // 图片与表格：不超 slide 下缘，也不超视口右缘
+      var boxes = s.querySelectorAll('img, .tbl-wrap');
+      for (var k = 0; k < boxes.length; k++) {
+        var ir = boxes[k].getBoundingClientRect();
+        if (ir.bottom - sTop0 > vh + 2) issues.push((s.id || i) + ':imgB' + Math.round(ir.bottom - sTop0));
+        if (ir.right > vw + 2) issues.push((s.id || i) + ':imgXR' + Math.round(ir.right - vw));
+      }
+      // 黄金区对位校验（窄窗口 ≤1100px 时版式合法退化为居中，跳过）
+      if (vw > 1100 && wrap.classList.contains('focus')) {
+        var ml = parseFloat(getComputedStyle(wrap).marginLeft);
+        var exp = Math.max(0, 0.335 * vw - 470);
+        var cx = r.left + r.width / 2;
+        if (Math.abs(ml - exp) > 3) issues.push((s.id || i) + ':ALIGNml' + Math.round(ml) + 'exp' + Math.round(exp));
+        if (cx > 0.42 * vw + 24) issues.push((s.id || i) + ':ALIGNc' + Math.round(cx) + 'max' + Math.round(0.42 * vw + 24));
+      }
+    });
+    document.title = issues.length === 0 ? 'CHECK_OK' : 'CHECK_FAIL ' + issues.join('|');
+    // 临时诊断：静态+锚点模式下输出滚动落点（验证后移除）
+    if (STATIC && location.hash) {
+      var dt = document.getElementById(location.hash.slice(1));
+      var offs = slides.map(function(s){ return s.offsetTop + '/' + s.offsetHeight; }).join(' ');
+      document.title += ' DIAG hash=' + location.hash +
+        ' scrollTop=' + deck.scrollTop +
+        ' offsetTop=' + (dt ? dt.offsetTop : 'NA') +
+        ' idx=' + slides.indexOf(dt) +
+        ' fonts=' + (document.fonts ? document.fonts.status : 'NA') +
+        ' || ' + offs;
+    }
+  }
+
+  // Hero 星空（缓慢漂移 + 闪烁）
+  var cv = document.getElementById('stars');
+  if (cv && cv.getContext) {
+    var ctx = cv.getContext('2d'), stars = [], W, H;
+    function resize(){
+      W = cv.width = cv.offsetWidth; H = cv.height = cv.offsetHeight;
+      stars = [];
+      var n = Math.min(150, Math.floor(W * H / 9500));
+      for (var i = 0; i < n; i++) {
+        stars.push({x:Math.random()*W, y:Math.random()*H*.92, r:Math.random()*1.15+.25,
+                    a:Math.random()*.45+.15, ph:Math.random()*6.28, sp:.35+Math.random()*.5,
+                    dx:(Math.random()-.5)*.045});
+      }
+    }
+    var t0 = 0;
+    function draw(ts){
+      t0 = ts ? ts/1000 : t0+0.016;
+      ctx.clearRect(0,0,W,H);
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i];
+        s.x += s.dx; if (s.x < 0) s.x = W; if (s.x > W) s.x = 0;
+        var tw = .55 + .45*Math.sin(t0*s.sp + s.ph);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, 6.2832);
+        ctx.fillStyle = 'rgba(200,225,255,' + (s.a*tw).toFixed(3) + ')';
+        ctx.fill();
+      }
+      requestAnimationFrame(draw);
+    }
+    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (STATIC) return;  // 静态截图模式不启动星空动画
+      window.addEventListener('resize', resize);
+      resize(); requestAnimationFrame(draw);
+    }
+  }
+})();
+</script>
+</body>
+</html>

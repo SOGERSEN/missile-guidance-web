@@ -1,0 +1,2409 @@
+<!doctype html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0A0A0C" />
+<title>导弹拦截交战可视化 · MATLAB aero_guidance 仿真回放</title>
+<script>
+  /* 主题记忆: 首帧渲染前恢复 (gw-theme; 默认深色; ?theme= 参数优先), 避免闪烁 */
+  try {
+    var _t = new URLSearchParams(location.search).get("theme");
+    if (_t !== "light" && _t !== "dark") _t = localStorage.getItem("gw-theme");
+    if (_t === "light" || _t === "dark") document.documentElement.dataset.theme = _t;
+  } catch (e) {}
+  /* file:// 直开时 ES module 会被 CORS 拦截: 3.5s 内应用未启动则提示 */
+  setTimeout(function () {
+    if (!window.__GW_STARTED) {
+      var el = document.getElementById("boot-hint");
+      if (el) el.style.display = "flex";
+    }
+  }, 3500);
+</script>
+<style>
+  /* ================================================================
+     Apple HIG 设计 token —— 参考 Elastic Wave Engine 的双主题体系
+     ================================================================ */
+  :root {
+    color-scheme: dark;
+    --bg: #0A0A0C;
+    --panel: rgba(28, 28, 30, 0.72);
+    --panel-deep: rgba(22, 22, 24, 0.88);
+    --inset: rgba(0, 0, 0, 0.28);
+    --hairline: rgba(255, 255, 255, 0.08);
+    --hairline-2: rgba(255, 255, 255, 0.14);
+    --fill-ctl: rgba(255, 255, 255, 0.07);
+    --fill-ctl-hover: rgba(255, 255, 255, 0.12);
+    --text: #F5F5F7;
+    --text-2: #98989D;
+    --text-3: rgba(152, 152, 157, 0.72);
+    --accent: #0A84FF;          /* 导弹/主色 */
+    --accent-soft: rgba(10, 132, 255, 0.12);
+    --orange: #FF9F0A;          /* 目标 */
+    --orange-soft: rgba(255, 159, 10, 0.12);
+    --ok: #30D158;
+    --danger: #FF453A;
+    --track: rgba(255, 255, 255, 0.16);
+    --seg-on: rgba(255, 255, 255, 0.16);
+    --chart-bg: rgba(0, 0, 0, 0.32);
+    --grid-line: rgba(255, 255, 255, 0.06);
+    --panel-sheen: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0) 42%);
+    --r-panel: 16px;
+    --r-ctl: 9px;
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --t: 280ms;
+    --glass: blur(24px) saturate(160%);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #F5F5F7;
+    --panel: rgba(255, 255, 255, 0.78);
+    --panel-deep: rgba(255, 255, 255, 0.92);
+    --inset: rgba(0, 0, 0, 0.045);
+    --hairline: rgba(0, 0, 0, 0.1);
+    --hairline-2: rgba(0, 0, 0, 0.18);
+    --fill-ctl: rgba(0, 0, 0, 0.05);
+    --fill-ctl-hover: rgba(0, 0, 0, 0.09);
+    --text: #1D1D1F;
+    --text-2: #6E6E73;
+    --text-3: rgba(110, 110, 115, 0.72);
+    --accent: #0071E3;
+    --accent-soft: rgba(0, 113, 227, 0.10);
+    --orange: #C93400;
+    --orange-soft: rgba(201, 52, 0, 0.10);
+    --track: rgba(0, 0, 0, 0.18);
+    --seg-on: rgba(0, 0, 0, 0.10);
+    --chart-bg: rgba(0, 0, 0, 0.04);
+    --grid-line: rgba(0, 0, 0, 0.08);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+                 "PingFang SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    transition: background var(--t) var(--ease);
+  }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; }
+
+  /* 视口暗角/顶部渐变, 增强玻璃面板可读性 */
+  #viewport-fx {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background:
+      linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0) 120px),
+      radial-gradient(135% 100% at 50% 38%, rgba(0,0,0,0) 58%, rgba(0,0,0,0.42) 100%);
+  }
+  [data-theme="light"] #viewport-fx {
+    background:
+      linear-gradient(to bottom, rgba(255,255,255,0.25), rgba(255,255,255,0) 120px),
+      radial-gradient(135% 100% at 50% 38%, rgba(255,255,255,0) 62%, rgba(0,0,0,0.10) 100%);
+  }
+
+  .glass {
+    position: fixed; z-index: 10;
+    background: var(--panel);
+    -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-panel);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .glass::before {  /* 顶部高光 */
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 46%;
+    background: var(--panel-sheen); pointer-events: none;
+  }
+
+  /* ---------------- 标题 ---------------- */
+  #title { top: 14px; left: 14px; padding: 10px 16px 11px; max-width: 430px; }
+  #title h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+  #title .sub { margin-top: 3px; font-size: 11px; color: var(--text-2); }
+  #title .sub b.prop { color: var(--accent); font-weight: 600; }
+  #title .sub b.tgt { color: var(--orange); font-weight: 600; }
+
+  /* ---------------- 主题切换 ---------------- */
+  #theme {
+    top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-2); cursor: pointer; user-select: none;
+    transition: color var(--t) var(--ease), transform var(--t) var(--ease);
+  }
+  #theme:hover { color: var(--text); transform: scale(1.06); }
+  #theme svg { width: 17px; height: 17px; }
+  #theme .ic-moon { display: none; }
+  [data-theme="light"] #theme .ic-sun { display: none; }
+  [data-theme="light"] #theme .ic-moon { display: block; }
+
+  /* ---------------- 沉浸模式按钮 ---------------- */
+  #imm-btn {
+    top: 14px; right: 62px; width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-2); user-select: none;
+    transition: color var(--t) var(--ease), transform var(--t) var(--ease);
+  }
+  #imm-btn:hover { color: var(--text); transform: scale(1.06); }
+  #imm-btn svg { width: 17px; height: 17px; }
+
+  /* ---------------- 右侧读数面板 ---------------- */
+  #readout {
+    top: 66px; right: 14px; width: 218px;
+    padding: 0; display: flex; flex-direction: column;
+  }
+  .panel-cap {
+    padding: 10px 14px 6px; font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.8px; color: var(--text-3); text-transform: uppercase;
+  }
+  #readout .rows { padding: 2px 14px 10px; }
+  .rrow {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 3.5px 0; border-bottom: 1px solid var(--hairline);
+  }
+  .rrow:last-child { border-bottom: none; }
+  .rrow .k { font-size: 12px; color: var(--text-2); }
+  .rrow .v { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rrow .v small { font-size: 10.5px; color: var(--text-3); font-weight: 400; margin-left: 3px; }
+  .rrow .v.acc { color: var(--accent); }
+  .rrow .v.ora { color: var(--orange); }
+  #readout .divider { height: 1px; background: var(--hairline-2); margin: 4px 0; }
+
+  /* ---------------- 左下图表 ---------------- */
+  #chartpanel { left: 14px; bottom: 86px; width: 330px; }
+  #chart-tabs {
+    display: flex; gap: 4px; padding: 8px 10px 6px;
+  }
+  .tab {
+    flex: 1; text-align: center; padding: 4px 0; font-size: 11.5px; color: var(--text-2);
+    background: var(--fill-ctl); border-radius: 7px; cursor: pointer; user-select: none;
+    transition: background var(--t) var(--ease), color var(--t) var(--ease);
+  }
+  .tab:hover { background: var(--fill-ctl-hover); }
+  .tab.on { background: var(--seg-on); color: var(--text); font-weight: 600; }
+  #chart-wrap { padding: 0 10px 10px; }
+  #chart { display: block; width: 310px; height: 148px; border-radius: 9px; background: var(--chart-bg); }
+
+  /* ---------------- 底部播放条 ---------------- */
+  #playbar {
+    left: 50%; transform: translateX(-50%); bottom: 14px;
+    width: min(720px, calc(100vw - 28px));
+    padding: 10px 14px 11px;
+  }
+  #playbar .bar-top { display: flex; align-items: center; gap: 10px; }
+  #btn-play {
+    width: 34px; height: 34px; flex: none; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 160ms var(--ease), filter 160ms var(--ease);
+  }
+  #btn-play:hover { transform: scale(1.07); filter: brightness(1.1); }
+  #btn-play:active { transform: scale(0.96); }
+  #btn-play svg { width: 15px; height: 15px; }
+  #tl-wrap { position: relative; flex: 1; height: 34px; display: flex; align-items: center; }
+  #timeline { width: 100%; appearance: none; -webkit-appearance: none; height: 4px;
+    border-radius: 2px; background: var(--track); outline: none; cursor: pointer; }
+  #timeline::-webkit-slider-thumb {
+    appearance: none; -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: #fff; border: 1px solid rgba(0,0,0,0.25);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.45); cursor: grab;
+  }
+  #timeline::-moz-range-thumb {
+    width: 15px; height: 15px; border-radius: 50%; background: #fff;
+    border: 1px solid rgba(0,0,0,0.25); box-shadow: 0 1px 4px rgba(0,0,0,0.45); cursor: grab;
+  }
+  .tl-mark {
+    position: absolute; top: 50%; width: 2px; height: 10px; margin-top: -5px;
+    background: var(--orange); border-radius: 1px; pointer-events: none; opacity: 0.9;
+  }
+  .tl-mark.start { background: var(--accent); }
+  #clock { flex: none; min-width: 118px; text-align: right;
+    font-variant-numeric: tabular-nums; font-size: 12px; color: var(--text-2); }
+  #clock b { color: var(--text); font-size: 13px; font-weight: 600; }
+
+  #playbar .bar-bot { display: flex; align-items: center; justify-content: space-between; margin-top: 9px; }
+  .seg { display: flex; gap: 3px; background: var(--inset); padding: 3px; border-radius: 9px; }
+  .seg button {
+    border: none; background: transparent; color: var(--text-2); font-size: 11.5px;
+    padding: 3.5px 10px; border-radius: 6.5px; cursor: pointer; font-family: inherit;
+    transition: background var(--t) var(--ease), color var(--t) var(--ease);
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--seg-on); color: var(--text); font-weight: 600; }
+  .seg button.rec-on { background: rgba(255, 59, 48, 0.20); color: #ff453a; font-weight: 600; }
+  .cap { font-size: 10.5px; color: var(--text-3); letter-spacing: 0.5px; }
+
+  /* ---------------- 视角切换 (右下) ---------------- */
+  #camseg { right: 14px; bottom: 14px; padding: 8px 10px; }
+  #camseg .seg button { padding: 4.5px 12px; }
+
+  /* ---------------- 场景标签 (发射点/拦截点, 投影) ---------------- */
+  .slabel {
+    position: fixed; z-index: 5; pointer-events: none;
+    transform: translate(-50%, -130%);
+    font-size: 10.5px; letter-spacing: 0.5px; color: var(--text-2);
+    background: var(--panel-deep); border: 1px solid var(--hairline);
+    padding: 2.5px 8px; border-radius: 7px;
+    -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+    white-space: nowrap; transition: opacity 200ms var(--ease);
+  }
+  .slabel.acc { color: var(--accent); }
+  .slabel.ora { color: var(--orange); }
+
+  /* ---------------- 撞击闪屏 ---------------- */
+  #impact-flash {
+    position: fixed; inset: 0; z-index: 8; pointer-events: none;
+    background: radial-gradient(60% 60% at var(--fx, 50%) var(--fy, 50%),
+                rgba(255, 214, 143, 0.85), rgba(255, 159, 10, 0.25) 45%, transparent 75%);
+    opacity: 0; transition: none;
+  }
+
+  /* ---------------- 交战结果卡 ---------------- */
+  #endcard {
+    top: 14px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px 12px; text-align: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 450ms var(--ease);
+  }
+  #endcard.show { opacity: 1; }
+  #endcard h2 { font-size: 15px; font-weight: 700; color: var(--ok); letter-spacing: 1px; }
+  #endcard .row { margin-top: 4px; font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+  /* ---------------- 启动提示 ---------------- */
+  #boot-hint {
+    display: none; position: fixed; inset: 0; z-index: 99;
+    background: rgba(0,0,0,0.55); align-items: center; justify-content: center;
+  }
+  #boot-hint .card {
+    background: var(--panel-deep); border: 1px solid var(--hairline-2);
+    border-radius: 16px; padding: 22px 28px; max-width: 430px; box-shadow: var(--shadow);
+    -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+  }
+  #boot-hint h2 { font-size: 15px; margin-bottom: 8px; }
+  #boot-hint p { font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+  #boot-hint code {
+    background: var(--inset); padding: 1px 6px; border-radius: 5px;
+    font-family: Consolas, Menlo, monospace; font-size: 11.5px;
+  }
+
+  /* ================= 面板交互: 拖拽 / 折叠 ================= */
+  .glass { transition: opacity 260ms var(--ease); }
+  .pgrip {
+    position: relative; height: 17px; margin: 1px 0 2px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab; user-select: none; touch-action: none;
+  }
+  .pgrip:active { cursor: grabbing; }
+  .pgrip-bar {
+    width: 30px; height: 4px; border-radius: 2px; background: var(--hairline-2);
+    transition: background 160ms var(--ease), width 160ms var(--ease);
+  }
+  .glass:hover .pgrip-bar { background: var(--text-3); }
+  .pgrip:active .pgrip-bar { background: var(--accent); width: 44px; }
+  .pcollapse {
+    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 15px; padding: 0; border: none; background: transparent;
+    color: var(--text-3); cursor: pointer; display: flex; align-items: center;
+    justify-content: center; border-radius: 5px; font-family: inherit;
+  }
+  .pcollapse:hover { background: var(--fill-ctl-hover); color: var(--text); }
+  .pcollapse svg { width: 11px; height: 11px; transition: transform 220ms var(--ease); }
+  .glass.collapsed .pcollapse svg { transform: rotate(180deg); }
+  .pbody {
+    display: grid; grid-template-rows: 1fr;
+    transition: grid-template-rows 260ms var(--ease), opacity 200ms var(--ease);
+  }
+  .pbody > .pbody-in { overflow: hidden; min-height: 0; }
+  .glass.collapsed .pbody { grid-template-rows: 0fr; opacity: 0; }
+  .glass.dragging { box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5); }
+  .iconbtn { cursor: pointer; }
+
+  /* ================= 沉浸模式 ================= */
+  #imm-exit {
+    position: fixed; right: 18px; bottom: 18px; z-index: 40;
+    width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--hairline);
+    background: var(--panel); color: var(--text-2); cursor: pointer;
+    -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 220ms var(--ease), color 160ms var(--ease);
+  }
+  #imm-exit svg { width: 16px; height: 16px; }
+  body.immersive #imm-exit { opacity: 0.4; pointer-events: auto; }
+  body.immersive #imm-exit:hover { opacity: 1; color: var(--text); }
+  body.immersive .glass,
+  body.immersive .slabel { opacity: 0 !important; pointer-events: none !important; }
+  body.immersive #endcard { opacity: 0 !important; }
+  body.hide-cursor, body.hide-cursor * { cursor: none !important; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="viewport-fx" aria-hidden="true"></div>
+<div id="impact-flash" aria-hidden="true"></div>
+
+<div id="endcard" class="glass" aria-hidden="true">
+  <h2>✔ 拦截成功</h2>
+  <div class="row" id="ec-line1"></div>
+  <div class="row" id="ec-line2"></div>
+  <div class="row" id="ec-line3"></div>
+</div>
+
+<div id="title" class="glass">
+  <h1>导弹拦截交战可视化</h1>
+  <div class="sub"><b class="prop">拦截弹</b> Mach 3 仰攻 · <b class="tgt">目标</b> 3548 m 巡航 · MATLAB <i>aero_guidance</i> 官方仿真逐帧回放</div>
+</div>
+
+<div id="theme" class="glass iconbtn" title="切换深/浅主题">
+  <svg class="ic-sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.5"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.2v1.7M8 13.1v1.7M1.2 8h1.7M13.1 8h1.7M3.3 3.3l1.2 1.2M11.5 11.5l1.2 1.2M12.7 3.3l-1.2 1.2M4.5 11.5l-1.2 1.2"/></g></svg>
+  <svg class="ic-moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.4 9.7A5.9 5.9 0 0 1 6.3 2.6a5.9 5.9 0 1 0 7.1 7.1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+</div>
+
+<div id="imm-btn" class="glass iconbtn" title="沉浸模式: 隐藏全部界面, 只留右下角退出按钮 (F 键)">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.8 2.6h3.6v3.6M6.2 13.4H2.6V9.8M13.4 2.6L9.2 6.8M2.6 13.4l4.2-4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</div>
+
+<div id="readout" class="glass">
+  <div class="panel-cap">实时遥测 · 拦截弹</div>
+  <div class="rows">
+    <div class="rrow"><span class="k">T+ 交战时间</span><span class="v acc" id="r-t">0.00<small>s</small></span></div>
+    <div class="rrow"><span class="k">高度</span><span class="v" id="r-h">—<small>m</small></span></div>
+    <div class="rrow"><span class="k">空速</span><span class="v" id="r-v">—<small>m/s</small></span></div>
+    <div class="rrow"><span class="k">马赫</span><span class="v" id="r-mach">—</span></div>
+    <div class="rrow"><span class="k">俯仰 θ</span><span class="v" id="r-theta">—<small>°</small></span></div>
+    <div class="rrow"><span class="k">攻角 α</span><span class="v" id="r-alpha">—<small>°</small></span></div>
+    <div class="rrow"><span class="k">切向过载</span><span class="v" id="r-g">—<small>g</small></span></div>
+    <div class="divider"></div>
+    <div class="rrow"><span class="k">弹目距离</span><span class="v" id="r-r">—<small>m</small></span></div>
+    <div class="rrow"><span class="k">接近速率</span><span class="v" id="r-rr">—<small>m/s</small></span></div>
+    <div class="rrow"><span class="k">目标高度</span><span class="v ora" id="r-th">—<small>m</small></span></div>
+    <div class="rrow"><span class="k">目标速度</span><span class="v ora" id="r-tv">—<small>m/s</small></span></div>
+  </div>
+</div>
+
+<div id="chartpanel" class="glass">
+  <div id="chart-tabs">
+    <div class="tab on" data-metric="h">高度</div>
+    <div class="tab" data-metric="mach">马赫</div>
+    <div class="tab" data-metric="alpha">攻角</div>
+    <div class="tab" data-metric="R">弹目距离</div>
+  </div>
+  <div id="chart-wrap"><canvas id="chart"></canvas></div>
+</div>
+
+<div id="playbar" class="glass">
+  <div class="bar-top">
+    <button id="btn-play" title="播放/暂停">
+      <svg id="ic-play" viewBox="0 0 16 16"><path d="M4.5 2.6v10.8c0 .8.9 1.3 1.6.9l8-5.4c.6-.4.6-1.4 0-1.8l-8-5.4c-.7-.4-1.6.1-1.6.9z" fill="currentColor"/></svg>
+      <svg id="ic-pause" viewBox="0 0 16 16" style="display:none"><rect x="3" y="2.5" width="3.4" height="11" rx="1.1" fill="currentColor"/><rect x="9.6" y="2.5" width="3.4" height="11" rx="1.1" fill="currentColor"/></svg>
+    </button>
+    <div id="tl-wrap">
+      <input id="timeline" type="range" min="0" max="34.39" step="0.01" value="0" />
+      <div class="tl-mark start" style="left:0%" title="发射"></div>
+      <div class="tl-mark" id="mark-ip" style="left:99.9%" title="拦截"></div>
+    </div>
+    <div id="clock"><b id="clk-t">T+ 0.00</b> / <span id="clk-total">3.44</span> s</div>
+  </div>
+  <div class="bar-bot">
+    <div class="seg" id="speedseg">
+      <button data-s="10" class="on" title="实时 · 与 Simulink 原版动画同速 (3.44 s)">1×</button>
+      <button data-s="5" title="慢放 2 倍 (6.9 s)">0.5×</button>
+      <button data-s="2" title="慢放 5 倍 (17.2 s)">0.2×</button>
+      <button data-s="1" title="慢放 10 倍 (34.4 s)">0.1×</button>
+    </div>
+    <div class="seg" id="fxseg">
+      <button id="btn-slowend" title="播放到命中前 0.6 秒 (真实时间) 自动渐变为 0.2× 慢放, 突出拦截瞬间; 再次点击还原纯当前速率">终段慢放</button>
+    </div>
+    <div class="cap">1× = 原版速率 · 3.44 s 交战</div>
+    <div class="seg" id="replayseg" style="visibility:hidden">
+      <button id="btn-replay">↺ 重播</button>
+    </div>
+    <div class="seg" id="recseg">
+      <button id="btn-rec" title="从头播放一遍并录制成视频文件 (浏览器内直接录制 3D 画面; 时长=当前速率档位, 只含三维视口, 不含面板/图表)">⏺ 录制视频</button>
+    </div>
+  </div>
+</div>
+
+<div id="camseg" class="glass">
+  <div class="seg" id="camseg-inner">
+    <button data-cam="orig" class="on" title="复刻 Simulink 3DoF 动画默认机位: 固定视点 [2000 500 -3150], 跟踪导弹, 视场角 10°">原版</button>
+    <button data-cam="side" title="全场侧视: 水平轴=射程, 垂直轴=海拔">侧视</button>
+    <button data-cam="orbit" title="鼠标左键环绕 / 滚轮缩放 / 右键平移">环绕</button>
+    <button data-cam="cinema" title="影院运镜: 围绕交战中心缓慢环绕的自动机位">影院</button>
+    <button data-cam="chase">追弹</button>
+    <button data-cam="top">顶视</button>
+  </div>
+</div>
+
+<div class="slabel acc" id="lb-launch">发射点 3 048 m</div>
+<div class="slabel ora" id="lb-ip">拦截点 3 491 m</div>
+
+<button id="imm-exit" title="退出沉浸模式 (Esc)">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.4 2.6L9.2 6.8M13.4 2.6h-3.6M13.4 2.6v3.6M2.6 13.4l4.2-4.2M2.6 13.4h3.6M2.6 13.4v-3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
+
+<div id="boot-hint">
+  <div class="card">
+    <h2>需要本地服务器</h2>
+    <p>浏览器不允许直接以 file:// 方式加载 3D 模块。<br>
+       请双击本目录下的 <code>start_web_demo.bat</code>,<br>
+       它会启动本地服务器并自动打开本页面。</p>
+  </div>
+</div>
+
+<script src="./data/telemetry.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+
+<script type="module">
+window.__GW_STARTED = true;
+import * as THREE from "three";
+
+/* 全局错误浮层: 模块加载/运行错误直接显示在页面上 */
+function __showErr(msg) {
+  const el = document.getElementById("boot-hint");
+  el.style.display = "flex";
+  el.querySelector("p").innerHTML = "<b>脚本错误:</b> " + msg;
+}
+window.addEventListener("error", e => __showErr(e.message + " @" + (e.filename || "").split("/").pop() + ":" + e.lineno));
+window.addEventListener("unhandledrejection", e => __showErr(String(e.reason)));
+
+/* ================================================================
+   0. 数据 —— MATLAB aero_guidance 官方仿真遥测 (export_telemetry_web.m 生成)
+   网页承诺: 逐帧线性插值, 不做任何外推/平滑/美化。
+   ================================================================ */
+const T = window.TELEMETRY;
+const M = T.missile, G = T.target, RG = T.range;
+const N = M.t.length;
+const T_END = M.t[N - 1];
+const DT = M.t[1] - M.t[0] > 0 ? M.t[1] - M.t[0] : T.summary.dtDemo;
+const S = T.summary;
+/* 数据以 ×SLOW 慢放采样: 内部时间轴(t 数组)是"演示时间", 除以 SLOW 才是真实交战时间 */
+const SLOW = S.slowFactor || 10;
+const T_END_REAL = T_END / SLOW;
+
+/* 帧采样: 均匀网格, 二分 + 线性插值 */
+function sample(arr, t) {
+  if (t <= 0) return arr[0];
+  if (t >= T_END) return arr[N - 1];
+  const f = t / T_END * (N - 1);
+  const i = Math.floor(f);
+  const a = arr[i], b = arr[Math.min(i + 1, N - 1)];
+  return a + (b - a) * (f - i);
+}
+
+/* ================================================================
+   1. 场景基建 —— 渲染器 / 相机 / 光照 / 地面 / 星空
+   ================================================================ */
+const app = document.getElementById("app");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 1, 60000);
+
+/* 主题联动的场景参数: 背景色 / 雾 / 网格 / 天空 / 云山地面着色 */
+const SCENE_THEME = {
+  dark:  { bg: 0x0b0e14, fogC: 0x2a3348, fogNear: 9000, fogFar: 26000, gridMajor: 0x39455a, gridMinor: 0x232c3a, gridOpacity: 0.5, stars: 0.9,
+           sun: 0.25, groundTint: 0x6f7a88, ridge1: 0x202a3c, ridge2: 0x2c3a52, cloudTint: 0x9aa6bc, cloudMul: 0.5 },
+  light: { bg: 0xdfe6ee, fogC: 0xdfe6ee, fogNear: 12000, fogFar: 32000, gridMajor: 0xb6c2cf, gridMinor: 0xc9d3dd, gridOpacity: 0.32, stars: 0.0,
+           sun: 0.9, groundTint: 0xcfc3ae, ridge1: 0x9db3c9, ridge2: 0xb7c7d8, cloudTint: 0xffffff, cloudMul: 1.0 },
+};
+let themeName = document.documentElement.dataset.theme || "dark";
+scene.background = new THREE.Color(SCENE_THEME[themeName].bg);
+scene.fog = new THREE.Fog(SCENE_THEME[themeName].fogC || SCENE_THEME[themeName].bg, SCENE_THEME[themeName].fogNear, SCENE_THEME[themeName].fogFar);
+
+scene.add(new THREE.HemisphereLight(0xdfeaff, 0x30281e, 0.85));
+const sun = new THREE.DirectionalLight(0xfff2df, 2.2);
+sun.position.set(-4200, 6200, 3800);
+scene.add(sun);
+
+/* 真实贴图加载 (textures/ 随本目录分发, 经 start_web_demo.bat 的本地服务器访问;
+   加载失败静默跳过 —— 页面回退到纯程序化外观, 离线仍可用) */
+const texLoader = new THREE.TextureLoader();
+function loadTex(url, onOk) {
+  texLoader.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; onOk(t); }, undefined, () => {});
+}
+
+/* 天空穹顶: 垂直渐变 (天顶 → 地平线霞光 → 地平线下) + 太阳方位暖晕, 双主题各一张 */
+const SKY_STOPS = {
+  dark:  [[0, "#04060f"], [0.30, "#0d1430"], [0.485, "#31405e"], [0.52, "#585b6a"], [0.62, "#1b1e28"], [1, "#0a0b10"]],
+  light: [[0, "#1f5cba"], [0.33, "#5f9be0"], [0.475, "#a9c8ea"], [0.515, "#eaf0f6"], [0.60, "#dfe2e6"], [1, "#cdd1d6"]],
+};
+function makeSkyTexture(name) {
+  const W = 1024, H = 512;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const c = cv.getContext("2d");
+  const g = c.createLinearGradient(0, 0, 0, H);
+  SKY_STOPS[name].forEach(s => g.addColorStop(s[0], s[1]));
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  /* 太阳方位暖晕 (与 DirectionalLight 同方向; 穹顶 u 沿经度、u=0 在 -X, canvas y=(1-uv.y)*H) */
+  const sd = sun.position.clone().normalize();
+  const cx = ((((Math.atan2(sd.z, -sd.x) / (Math.PI * 2)) % 1) + 1) % 1) * W;
+  const cy = (Math.acos(THREE.MathUtils.clamp(sd.y, -1, 1)) / Math.PI) * H;
+  const halo = c.createRadialGradient(cx, cy, 0, cx, cy, W * 0.30);
+  if (name === "light") {
+    halo.addColorStop(0, "rgba(255,240,200,0.50)");
+    halo.addColorStop(0.4, "rgba(255,228,170,0.20)");
+    halo.addColorStop(1, "rgba(255,228,170,0)");
+  } else {
+    halo.addColorStop(0, "rgba(150,170,210,0.16)");
+    halo.addColorStop(1, "rgba(150,170,210,0)");
+  }
+  c.fillStyle = halo; c.fillRect(0, 0, W, H);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const SKY_TEX = { dark: makeSkyTexture("dark"), light: makeSkyTexture("light") };
+
+/* PBR 环境反射: 把同一张天空渐变烘焙成 PMREM env, 金属弹体映出天空 */
+const pmremGen = new THREE.PMREMGenerator(renderer);
+function makeEnvTexture(name) {
+  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 32;
+  const c = cv.getContext("2d");
+  const g = c.createLinearGradient(0, 0, 0, 32);
+  SKY_STOPS[name].forEach(s => g.addColorStop(s[0], s[1]));
+  c.fillStyle = g; c.fillRect(0, 0, 64, 32);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  const rt = pmremGen.fromEquirectangular(t);
+  t.dispose();
+  return rt.texture;
+}
+const ENV_TEX = { dark: makeEnvTexture("dark"), light: makeEnvTexture("light") };
+scene.environment = ENV_TEX[themeName];
+const skyDome = new THREE.Mesh(
+  new THREE.SphereGeometry(46000, 32, 24),
+  new THREE.MeshBasicMaterial({ map: SKY_TEX[themeName], side: THREE.BackSide, fog: false, depthWrite: false })
+);
+scene.add(skyDome);
+
+/* 太阳辉光 (加色公告板, 置于光照方向远处) */
+const sunGlow = (() => {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+  const c = cv.getContext("2d");
+  const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,248,230,0.95)");
+  g.addColorStop(0.25, "rgba(255,224,166,0.5)");
+  g.addColorStop(1, "rgba(255,210,140,0)");
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, opacity: SCENE_THEME[themeName].sun,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+  sp.position.copy(sun.position).normalize().multiplyScalar(43000);
+  sp.scale.setScalar(13000);
+  scene.add(sp);
+  return sp;
+})();
+
+/* 远山: 两圈程序化山脊剪影 (定种子噪声), 靠距离雾自然分层 */
+function makeRidgeGeometry(radius, hMin, hMax, seed) {
+  let s = seed;
+  const rnd = () => (s = s * 16807 % 2147483647) / 2147483647;
+  const nSeg = 256, ph1 = rnd() * 6.283, ph2 = rnd() * 6.283, ph3 = rnd() * 6.283;
+  const pos = [], idx = [];
+  for (let i = 0; i <= nSeg; i++) {
+    const a = i / nSeg * Math.PI * 2;
+    const n = 0.5 + 0.28 * Math.sin(3 * a + ph1) + 0.17 * Math.sin(7 * a + ph2) + 0.09 * Math.sin(15 * a + ph3) + (rnd() - 0.5) * 0.08;
+    const h = hMin + (hMax - hMin) * Math.max(0.06, n);
+    const x = Math.cos(a) * radius, z = Math.sin(a) * radius;
+    pos.push(x, -160, z, x, h, z);
+    if (i < nSeg) { const b = i * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  return geo;
+}
+const ridgeNear = new THREE.Mesh(makeRidgeGeometry(17000, 380, 1500, 11),
+  new THREE.MeshBasicMaterial({ color: SCENE_THEME[themeName].ridge1, side: THREE.DoubleSide, transparent: true, opacity: 0.96 }));
+ridgeNear.position.set(1500, 0, 0);
+const ridgeFar = new THREE.Mesh(makeRidgeGeometry(24000, 900, 2400, 37),
+  new THREE.MeshBasicMaterial({ color: SCENE_THEME[themeName].ridge2, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+ridgeFar.position.set(2200, 0, -900);
+scene.add(ridgeFar, ridgeNear);
+
+/* 地面: 大圆盘 + 真实沙土贴图 (平铺 110×110), 主题色调乘法着色 */
+const groundMat = new THREE.MeshStandardMaterial({ color: SCENE_THEME[themeName].groundTint, roughness: 1, metalness: 0, envMapIntensity: 0.25 });
+const ground = new THREE.Mesh(new THREE.CircleGeometry(30000, 64), groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -1;
+scene.add(ground);
+/* 地面贴图: 优先加载 3072² 高清版 (原照片上采样 + 细节噪声叠加), 失败回退原图 */
+function applyGroundTex(t) {
+  if (groundMat.map) return;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(110, 110);
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();   /* 掠射角清晰度: 拉满 */
+  groundMat.map = t;
+  groundMat.needsUpdate = true;
+}
+loadTex("textures/ground_soil_hd.jpg", applyGroundTex);
+loadTex("textures/ground_soil.jpg", applyGroundTex);
+
+/* 云层: 真实积云 PNG 公告板 (中云 2.2-2.9 km 一层 + 高云 4.0-4.6 km 一层)
+   两套贴图混用: 照片版 (真实细节) + 程序化 2048² 版 (锐利, 打破重复感) */
+const clouds = [];
+let cloudTexB = null;                 /* 程序化 2K 云 (后加载则回填) */
+let puffTexChosen = false, puffTexLight = null, darkPuffTex = null;
+function prepCloudTex(img) {
+  /* 底部 14% alpha 渐隐, 避免 billboard 底边硬切 */
+  const cv = document.createElement("canvas");
+  cv.width = img.width; cv.height = img.height;
+  const c = cv.getContext("2d");
+  c.drawImage(img, 0, 0);
+  c.globalCompositeOperation = "destination-out";
+  const fade = c.createLinearGradient(0, cv.height * 0.82, 0, cv.height);
+  fade.addColorStop(0, "rgba(0,0,0,0)"); fade.addColorStop(1, "rgba(0,0,0,0.9)");
+  c.fillStyle = fade; c.fillRect(0, cv.height * 0.82, cv.width, cv.height * 0.18);
+  const ct = new THREE.CanvasTexture(cv);
+  ct.colorSpace = THREE.SRGBColorSpace;
+  return ct;
+}
+function applyPuffTex(t) {
+  puffTexLight = t;
+  puffs.forEach(p => { p.sp.material.map = t; p.sp.material.needsUpdate = true; });
+}
+loadTex("textures/cloud_cumulus.png", t => {
+  const ct = prepCloudTex(t.image);
+  const th = SCENE_THEME[themeName];
+  for (let i = 0; i < 64; i++) {
+    const high = Math.random() < 0.2;
+    const near = Math.random() < 0.6;                 /* 六成聚在交战走廊附近, 保证窄视场也有云 */
+    const w = (high ? 1000 : 1500) * (0.45 + Math.random());
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: (cloudTexB && i % 3 === 0) ? cloudTexB : ct,
+      transparent: true, depthWrite: false, fog: true,
+      color: th.cloudTint, opacity: 0,
+      rotation: (Math.random() - 0.5) * 0.22,          /* 随机倾斜, 打破"同一枚印章"感 */
+    }));
+    sp.position.set(near ? -4000 + Math.random() * 13000 : -6000 + Math.random() * 16000,
+                    high ? 4050 + Math.random() * 550 : 2200 + Math.random() * 700,
+                    near ? -5000 + Math.random() * 10000 : -8000 + Math.random() * 16000);
+    sp.scale.set(w, w * ct.image.height / ct.image.width * (0.68 + Math.random() * 0.62), 1);
+    sp.userData.o = 0.55 + Math.random() * 0.35;
+    sp.material.opacity = sp.userData.o * th.cloudMul;
+    scene.add(sp);
+    clouds.push(sp);
+  }
+  /* 远走廊云: 沿原版机位视轴 (拦截点以远) 一列大云, 保证窄视场内也有云海地平线 */
+  for (let i = 0; i < 18; i++) {
+    const w = 1600 + Math.random() * 1000;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: (cloudTexB && i % 3 === 0) ? cloudTexB : ct,
+      transparent: true, depthWrite: false, fog: true,
+      color: th.cloudTint, opacity: 0,
+      rotation: (Math.random() - 0.5) * 0.18,
+    }));
+    sp.position.set(5500 + Math.random() * 7500, 1900 + Math.random() * 600, -2500 + Math.random() * 5000);
+    sp.scale.set(w, w * ct.image.height / ct.image.width * (0.78 + Math.random() * 0.3), 1);
+    sp.userData.o = 0.5 + Math.random() * 0.3;
+    sp.material.opacity = sp.userData.o * th.cloudMul;
+    scene.add(sp);
+    clouds.push(sp);
+  }
+  if (!puffTexChosen) applyPuffTex(ct);
+});
+/* 程序化 2K 云: 无论先后加载, 都让约 1/3 的云用上它 (锐利 + 打破重复) */
+loadTex("textures/cloud_cumulus_2k.png", t => {
+  cloudTexB = prepCloudTex(t.image);
+  clouds.forEach((sp, i) => {
+    if (i % 3 === 0) { sp.material.map = cloudTexB; sp.material.needsUpdate = true; }
+  });
+});
+/* 发动机烟团专用贴图 (比云更湍流、更"烟") */
+loadTex("textures/smoke_puff_1k.png", t => {
+  t.colorSpace = THREE.SRGBColorSpace;
+  puffTexChosen = true;
+  applyPuffTex(t);
+});
+/* 受损黑烟专用贴图 (竖向烟柱纹理, 燃烧残骸拖烟用) */
+loadTex("textures/smoke_plume_dark_2k.png", t => {
+  t.colorSpace = THREE.SRGBColorSpace;
+  darkPuffTex = t;
+});
+
+let grid = new THREE.GridHelper(24000, 24, SCENE_THEME[themeName].gridMajor, SCENE_THEME[themeName].gridMinor);
+grid.material.transparent = true;
+grid.material.opacity = SCENE_THEME[themeName].gridOpacity;
+grid.position.y = 0;
+scene.add(grid);
+
+/* 星空 (仅深色主题可见) */
+{
+  const n = 900, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(Math.random() * 0.85);
+    const r = 45000;
+    pos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    pos[i*3+1] = r * Math.cos(ph) * 0.9 + 2000;
+    pos[i*3+2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  var stars = new THREE.Points(geo, new THREE.PointsMaterial({
+    color: 0xcfd8e6, size: 42, sizeAttenuation: true, transparent: true, opacity: SCENE_THEME[themeName].stars,
+    fog: false, depthWrite: false,
+  }));
+  scene.add(stars);
+}
+
+function applySceneTheme(name) {
+  themeName = name;
+  const t = SCENE_THEME[name];
+  scene.background.set(t.bg);
+  scene.fog.color.set(t.fogC || t.bg);
+  scene.fog.near = t.fogNear; scene.fog.far = t.fogFar;
+  stars.material.opacity = t.stars;
+  skyDome.material.map = SKY_TEX[name];
+  skyDome.material.needsUpdate = true;
+  sunGlow.material.opacity = t.sun;
+  scene.environment = ENV_TEX[name];
+  renderer.toneMappingExposure = name === "dark" ? 0.95 : 1.12;
+  groundMat.color.set(t.groundTint);
+  ridgeNear.material.color.set(t.ridge1);
+  ridgeFar.material.color.set(t.ridge2);
+  clouds.forEach(c => { c.material.color.set(t.cloudTint); c.material.opacity = c.userData.o * t.cloudMul; });
+  /* GridHelper 色系需要重建 */
+  scene.remove(grid);
+  grid.geometry.dispose(); grid.material.dispose();
+  grid = new THREE.GridHelper(24000, 24, t.gridMajor, t.gridMinor);
+  grid.material.transparent = true;
+  grid.material.opacity = t.gridOpacity;
+  scene.add(grid);
+}
+
+/* ================================================================
+   2. 场景坐标 —— X=前向距离, Y=高度, Z=侧向 (1 unit = 1 m)
+   弹体模型显示尺寸放大便于观察 (轨迹严格按数据);
+   放大倍数对齐官方 3DoF 动画的绘制尺度 (craft 顶点放大 100 倍)
+   ================================================================ */
+const MSL_SCALE = 16;              /* 导弹 ~51 m 显示长度 (官方动画同量级) */
+const TGT_SCALE = 8;               /* 目标 ~50 m 翼展 */
+const V = (x, h, z = 0) => new THREE.Vector3(x, h, z);
+
+/* ---------- 尾焰羽流贴图 (马赫环 = 激波钻石链的载体) ----------
+   物理: 喷口喷出超音速尾气时, 若出口压力与环境压力不匹配, 尾流里会交替出现
+   膨胀波与压缩波; 压缩区高温气体发光, 形成一串"钻石型驻波"(激波钻石 / 马赫盘),
+   一明一暗间隔、位置固定在喷口后 (驻波, 不随气流移动)。 */
+/* 柔光团: 羽流主体的一团加色辉光 (白核 → 透明) */
+function plumeGlowTexture() {
+  const S = 128;
+  const cv = document.createElement("canvas"); cv.width = cv.height = S;
+  const c = cv.getContext("2d");
+  const g = c.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.34, "rgba(255,255,255,0.68)");
+  g.addColorStop(0.7, "rgba(255,255,255,0.22)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  c.fillStyle = g; c.fillRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/* 激波钻石: 白热亮核 + 沿轴双向长尖角 (菱形轮廓); 贴到沿弹轴取向的交叉面片上,
+   所以纹理的横向 = 尾流方向, 菱形永远顺流而不是随机朝向 */
+function shockDiamondTexture() {
+  const S = 128, cx = S / 2, cy = S / 2;
+  const cv = document.createElement("canvas"); cv.width = cv.height = S;
+  const c = cv.getContext("2d");
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, S * 0.30);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.34, "rgba(255,238,200,0.92)");
+  g.addColorStop(0.70, "rgba(255,170,96,0.34)");
+  g.addColorStop(1, "rgba(255,120,50,0)");
+  c.fillStyle = g; c.fillRect(0, 0, S, S);
+  /* 轴向长尖角 + 横向短尖角: 让光斑呈菱形而非圆点 */
+  c.globalCompositeOperation = "lighter";
+  c.lineCap = "round";
+  const spike = (ang, len, wid, a0) => {
+    const ex = cx + Math.cos(ang) * len, ey = cy + Math.sin(ang) * len;
+    const lg = c.createLinearGradient(cx, cy, ex, ey);
+    lg.addColorStop(0, "rgba(255,246,218," + a0 + ")");
+    lg.addColorStop(0.5, "rgba(255,190,120," + (a0 * 0.40).toFixed(3) + ")");
+    lg.addColorStop(1, "rgba(255,140,70,0)");
+    c.strokeStyle = lg; c.lineWidth = wid;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(ex, ey); c.stroke();
+  };
+  spike(0, S * 0.47, S * 0.16, 0.55);  spike(Math.PI, S * 0.47, S * 0.16, 0.55);
+  spike(Math.PI / 2, S * 0.16, S * 0.09, 0.24); spike(-Math.PI / 2, S * 0.16, S * 0.09, 0.24);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/* 弹身蒙皮贴图: 白底 + 风化拉丝 + 隔框线 + 铆钉排 + 蓝色识别带 + 检修口盖 + 舱盖
+   (圆柱 v=1 在弹头方向 → canvas y=0 对应弹头, y=S 对应尾喷口)
+   1024² 分辨率, 细节量按 4K 特写设计 */
+function missileBodyTexture() {
+  const S = 1024;
+  const cv = document.createElement("canvas"); cv.width = S; cv.height = S;
+  const c = cv.getContext("2d");
+  c.fillStyle = "#e9ebf0"; c.fillRect(0, 0, S, S);
+  /* 底色不均 (漆面老化) */
+  for (let i = 0; i < 900; i++) {
+    c.fillStyle = "rgba(120,132,150," + (Math.random() * 0.05).toFixed(3) + ")";
+    c.fillRect(Math.random() * S, Math.random() * S, 2 + Math.random() * 6, 8 + Math.random() * 60);
+  }
+  /* 纵向蒙皮拉丝 (沿弹轴) */
+  for (let i = 0; i < 300; i++) {
+    c.strokeStyle = "rgba(150,160,175," + (0.03 + Math.random() * 0.09).toFixed(3) + ")";
+    c.lineWidth = 1 + Math.random() * 2;
+    const y = Math.random() * S, x0 = Math.random() * S;
+    c.beginPath(); c.moveTo(x0, y); c.lineTo(x0 + (Math.random() - 0.5) * 10, y + 20 + Math.random() * 90); c.stroke();
+  }
+  /* 环向隔框线 */
+  c.strokeStyle = "rgba(96,106,122,0.5)"; c.lineWidth = 1.5;
+  for (let i = 1; i < 16; i++) {
+    const y = i * S / 16 + 0.5;
+    c.beginPath(); c.moveTo(0, y); c.lineTo(S, y); c.stroke();
+  }
+  /* 纵向面板接缝 */
+  c.strokeStyle = "rgba(110,120,136,0.32)"; c.lineWidth = 1;
+  for (const fx of [0.18, 0.42, 0.66, 0.88]) {
+    c.beginPath(); c.moveTo(fx * S + 0.5, 0); c.lineTo(fx * S + 0.5, S); c.stroke();
+  }
+  /* 铆钉排 (沿隔框线) */
+  c.fillStyle = "rgba(110,120,136,0.55)";
+  for (let i = 1; i < 16; i++) {
+    const y = i * S / 16;
+    for (let x = 7; x < S; x += 14) { c.beginPath(); c.arc(x, y - 5, 1.7, 0, 7); c.fill(); }
+  }
+  /* 检修口盖 + 四角螺钉 */
+  for (const [px, py, pw, ph] of [[0.28, 0.30, 0.17, 0.11], [0.55, 0.60, 0.13, 0.09], [0.72, 0.20, 0.11, 0.08]]) {
+    c.fillStyle = "rgba(206,211,221,0.92)";
+    c.fillRect(px * S, py * S, pw * S, ph * S);
+    c.strokeStyle = "rgba(120,130,146,0.65)"; c.lineWidth = 2;
+    c.strokeRect(px * S, py * S, pw * S, ph * S);
+    c.fillStyle = "rgba(90,100,115,0.85)";
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      c.beginPath(); c.arc((px + dx * pw) * S, (py + dy * ph) * S, 2.4, 0, 7); c.fill();
+    }
+  }
+  /* 蓝色识别带 + 白色喷涂文字 */
+  c.fillStyle = "#0a84ff"; c.fillRect(0, 0.095 * S, S, 0.058 * S);
+  c.fillStyle = "rgba(255,255,255,0.93)";
+  c.font = "bold " + Math.round(S * 0.026) + "px sans-serif";
+  c.fillText("GUIDED TEST VEHICLE", 0.05 * S, 0.140 * S);
+  /* 警示框 + 舱盖 */
+  c.fillStyle = "rgba(40,46,58,0.9)";
+  c.fillRect(0.36 * S, 0.46 * S, 0.10 * S, 0.16 * S);
+  c.strokeStyle = "rgba(255,190,60,0.9)"; c.lineWidth = 3;
+  c.strokeRect(0.36 * S, 0.46 * S, 0.10 * S, 0.16 * S);
+  c.fillStyle = "rgba(40,46,58,0.85)";
+  c.fillRect(0.58 * S, 0.44 * S, 0.07 * S, 0.12 * S);
+  /* 尾段积碳 */
+  const grad = c.createLinearGradient(0, 0.78 * S, 0, S);
+  grad.addColorStop(0, "rgba(60,58,56,0)");
+  grad.addColorStop(1, "rgba(46,44,42,0.6)");
+  c.fillStyle = grad; c.fillRect(0, 0.78 * S, S, 0.22 * S);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/* 目标机蒙皮: 橙色底 + 斑驳漆面 + 面板线/铆钉 + 白色标识带 (可平铺) */
+function targetSkinTexture() {
+  const S = 512;
+  const cv = document.createElement("canvas"); cv.width = S; cv.height = S;
+  const c = cv.getContext("2d");
+  c.fillStyle = "#d9541e"; c.fillRect(0, 0, S, S);
+  for (let i = 0; i < 420; i++) {
+    c.fillStyle = "rgba(150,60,20," + (Math.random() * 0.08).toFixed(3) + ")";
+    c.fillRect(Math.random() * S, Math.random() * S, 4 + Math.random() * 22, 4 + Math.random() * 22);
+  }
+  c.strokeStyle = "rgba(110,45,14,0.55)"; c.lineWidth = 1.5;
+  for (let i = 1; i < 8; i++) {
+    const y = i * S / 8 + 0.5;
+    c.beginPath(); c.moveTo(0, y); c.lineTo(S, y); c.stroke();
+  }
+  for (const fx of [0.25, 0.5, 0.75]) {
+    c.beginPath(); c.moveTo(fx * S + 0.5, 0); c.lineTo(fx * S + 0.5, S); c.stroke();
+  }
+  c.fillStyle = "rgba(120,50,18,0.6)";
+  for (let i = 1; i < 8; i++)
+    for (let x = 8; x < S; x += 16) { c.beginPath(); c.arc(x, i * S / 8 - 5, 1.5, 0, 7); c.fill(); }
+  c.fillStyle = "rgba(190,80,30,0.9)"; c.strokeStyle = "rgba(120,50,18,0.7)"; c.lineWidth = 1.5;
+  c.fillRect(0.12 * S, 0.30 * S, 0.14 * S, 0.10 * S); c.strokeRect(0.12 * S, 0.30 * S, 0.14 * S, 0.10 * S);
+  c.fillRect(0.62 * S, 0.58 * S, 0.12 * S, 0.09 * S); c.strokeRect(0.62 * S, 0.58 * S, 0.12 * S, 0.09 * S);
+  c.fillStyle = "rgba(245,245,245,0.92)"; c.fillRect(0, 0.14 * S, S, 0.05 * S);
+  c.fillStyle = "rgba(40,30,26,0.85)";
+  c.font = "bold " + Math.round(S * 0.045) + "px sans-serif";
+  c.fillText("TGT-07", 0.06 * S, 0.178 * S);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 1);
+  t.anisotropy = 8;
+  return t;
+}
+
+/* ---------- 拦截弹模型: 蒙皮贴图弹身+战斗部+十字尾翼+鸭翼+喷口, +X 为弹头 ---------- */
+function buildMissile() {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ map: missileBodyTexture(), roughness: 0.32, metalness: 0.5, envMapIntensity: 0.8 });
+  const accMat  = new THREE.MeshStandardMaterial({ color: 0x0a84ff, roughness: 0.32, metalness: 0.4, envMapIntensity: 0.7 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.45, metalness: 0.7, envMapIntensity: 0.6 });
+  const finMat  = new THREE.MeshStandardMaterial({ color: 0xb9c0ca, roughness: 0.38, metalness: 0.65, envMapIntensity: 0.7 });
+  const L = 3.2, R = 0.14;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L * 0.70, 24), bodyMat);
+  body.rotation.z = -Math.PI / 2;
+  body.position.x = -L * 0.15;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(R, L * 0.30, 24), accMat);
+  nose.rotation.z = -Math.PI / 2;
+  nose.position.x = L * 0.35;
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.82, R * 0.96, L * 0.14, 20), darkMat);
+  nozzle.rotation.z = -Math.PI / 2;
+  nozzle.position.x = -L * 0.43;
+  g.add(body, nose, nozzle);
+  /* 四片十字尾翼 + 四片斜置鸭翼 (薄板沿弹径向外) */
+  const fin = () => new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.028, 0.30), finMat);
+  const wing = () => new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.024, 0.20), finMat);
+  for (let i = 0; i < 4; i++) {
+    const hold = new THREE.Group();
+    const f = fin();
+    f.position.set(-L * 0.32, 0, R + 0.13);
+    f.rotation.x = -0.12;
+    hold.add(f);
+    hold.rotation.x = i * Math.PI / 2;
+    g.add(hold);
+    const holdW = new THREE.Group();
+    const w = wing();
+    w.position.set(L * 0.20, 0, R + 0.09);
+    holdW.add(w);
+    holdW.rotation.x = i * Math.PI / 2 + Math.PI / 4;
+    g.add(holdW);
+  }
+  /* ---------- 尾焰羽流 + 激波钻石 (马赫环) ----------
+     喷口在 x≈-1.6; 羽流沿 -X 伸出约 3.0 (≈10 倍喷口直径), 颜色从喷口处的
+     橙白炽热过渡到下游的粉紫/蓝紫 (高速尾气辉光)。羽流内部是一串位置固定的
+     "压缩区亮钻石"驻波 —— 一明一暗间隔, 就是马赫环 (激波钻石)。 */
+  const plume = new THREE.Group();
+  const glowTex = plumeGlowTexture(), diaTex = shockDiamondTexture();
+  const glows = [], diamonds = [];
+  const NOZ_X = -L * 0.5, PLUME_LEN = 3.0;
+  /* 羽流主体: 22 团加色辉光, 由喷口向后再向外扩张成锥形,
+     色相沿 橙 → 粉 → 蓝紫 走 (绕 0° 短路径) */
+  const GN = 22;
+  for (let i = 0; i < GN; i++) {
+    const t = i / (GN - 1);
+    const col = new THREE.Color().setHSL(0.085 - 0.36 * Math.pow(t, 0.60), 0.95, 0.60 - 0.06 * t);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, transparent: true, opacity: 0, depthWrite: false,
+      blending: THREE.AdditiveBlending, fog: false, color: col }));
+    s.position.x = NOZ_X - Math.pow(t, 1.05) * PLUME_LEN;
+    const sc = 0.30 + 0.56 * t;
+    s.scale.set(sc, sc * 0.94, 1);
+    s.userData.base = 0.66 * (1 - t) + 0.10;
+    plume.add(s); glows.push(s);
+  }
+  /* 激波钻石链: 每个节点 = 两片交叉的菱形光片 (沿弹轴取向, 任何视角都有一片正对),
+     节点相互交叠成连续光柱, 中心亮、颈暗 → "一明一暗" 驻波;
+     尺寸沿下游递增 (羽流扩张), 亮度递减 (激波越远越弱) */
+  const diaGeo = new THREE.PlaneGeometry(1, 1);
+  const DN = 11;
+  let diaX = 0.17;
+  for (let i = 0; i < DN; i++) {
+    const col = new THREE.Color().setHSL(0.085, 1.0, 0.78 - 0.022 * i);
+    const mat = new THREE.MeshBasicMaterial({
+      map: diaTex, color: col, transparent: true, opacity: 0, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+    const node = new THREE.Group();
+    const p1 = new THREE.Mesh(diaGeo, mat), p2 = new THREE.Mesh(diaGeo, mat);
+    p2.rotation.x = Math.PI / 2;                 /* 绕弹轴转 90°: 两片交叉 */
+    node.add(p1, p2);
+    node.position.x = NOZ_X - diaX;
+    diaX += 0.14 + i * 0.010;
+    const sc = 0.14 + i * 0.017;
+    node.scale.set(sc * 1.5, sc, sc);            /* 沿尾流方向拉长成菱形 */
+    node.userData = { mat, base: 0.62 - i * 0.035 };
+    plume.add(node); diamonds.push(node);
+  }
+  /* 喷口炽热核心 */
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, transparent: true, opacity: 0, depthWrite: false,
+    blending: THREE.AdditiveBlending, fog: false, color: 0xffe2b8 }));
+  core.position.x = NOZ_X + 0.02; core.scale.set(0.30, 0.24, 1);
+  plume.add(core);
+  plume.userData = { glows, diamonds, core };
+  g.add(plume);
+  /* 尾焰点光: 橙色调 (真实尾焰照亮弹尾与附近机体) */
+  const flameLight = new THREE.PointLight(0xffb877, 2.2, 900, 2);
+  flameLight.position.x = -L * 0.7;
+  g.add(flameLight);
+  g.userData.plume = plume;
+  g.userData.flameLight = flameLight;
+  g.scale.setScalar(MSL_SCALE);
+  return g;
+}
+const missile = buildMissile();
+scene.add(missile);
+
+/* ---------- 远距可视信标: 距离自适应的柔光点 (保证任意视距能看到弹/目标) ---------- */
+function makeBeacon(inner, outer) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64;
+  const c = cv.getContext("2d");
+  const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.28, inner);
+  g.addColorStop(1, outer);
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  return new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+}
+const beaconM = makeBeacon("rgba(90,165,255,0.85)", "rgba(90,165,255,0)");
+const beaconG = makeBeacon("rgba(255,170,60,0.85)", "rgba(255,170,60,0)");
+scene.add(beaconM, beaconG);
+
+/* ---------- 目标模型: 小型喷气机 (机身+座舱+后掠翼+平尾+垂尾), 机头 +X (运行时旋转 180° 朝 -X) ---------- */
+function buildTarget() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ map: targetSkinTexture(), color: 0xffffff, roughness: 0.4, metalness: 0.35, envMapIntensity: 0.55, side: THREE.DoubleSide });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x4a2412, roughness: 0.5, metalness: 0.3, envMapIntensity: 0.5, side: THREE.DoubleSide });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x141a24, roughness: 0.12, metalness: 0.85, envMapIntensity: 1.0 });
+  const fus = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 3.2, 6, 14), mat);
+  fus.rotation.z = Math.PI / 2;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.0, 14), mat);
+  nose.rotation.z = -Math.PI / 2;
+  nose.position.x = 2.45;
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10), glass);
+  canopy.scale.set(1.6, 0.65, 0.8);
+  canopy.position.set(1.15, 0.32, 0);
+  /* 后掠翼: 平面形状 (x=弦向, y=展向) 挤出成薄板, rotation.x=-90° 铺到水平面 */
+  function wing(chordR, chordT, span, sweep, thick) {
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0); sh.lineTo(chordR, 0); sh.lineTo(sweep - chordT, span); sh.lineTo(sweep, span); sh.closePath();
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: thick, bevelEnabled: false }), mat);
+    m.rotation.x = -Math.PI / 2;
+    return m;
+  }
+  const wingL = wing(1.7, 0.55, 2.7, 1.25, 0.07);
+  wingL.position.set(-0.2, 0, 0.2);
+  const wingR = wingL.clone();
+  wingR.scale.z = -1;
+  const tailL = wing(0.9, 0.35, 1.15, 0.65, 0.05);
+  tailL.position.set(-1.85, 0.05, 0.15);
+  const tailR = tailL.clone();
+  tailR.scale.z = -1;
+  const finS = new THREE.Shape();
+  finS.moveTo(0, 0); finS.lineTo(0.85, 0); finS.lineTo(0.55, 0.75); finS.lineTo(0.15, 0.75); finS.closePath();
+  const fin = new THREE.Mesh(new THREE.ExtrudeGeometry(finS, { depth: 0.05, bevelEnabled: false }), dark);
+  fin.position.set(-2.1, 0.28, -0.025);
+  g.add(fus, nose, canopy, wingL, wingR, tailL, tailR, fin);
+  g.scale.setScalar(TGT_SCALE);
+  return g;
+}
+const target = buildTarget();
+scene.add(target);
+
+/* ---------- 轨迹线: 全程暗线 + 已飞亮线 (drawRange 驱动) ---------- */
+function fullLine(points, color, opacity) {
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  return new THREE.Line(geo, mat);
+}
+const ptsM = [], ptsG = [];
+for (let i = 0; i < N; i++) { ptsM.push(V(M.x[i], M.h[i])); ptsG.push(V(G.x[i], G.h[i])); }
+const lineMfull = fullLine(ptsM, 0x0a84ff, 0.16);
+const lineGfull = fullLine(ptsG, 0xff9f0a, 0.16);
+const lineMlive = fullLine(ptsM, 0x4da3ff, 0.95);
+const lineGlive = fullLine(ptsG, 0xffb84d, 0.9);
+scene.add(lineMfull, lineGfull, lineMlive, lineGlive);
+
+/* 发射/拦截点的落参考线 (虚线) */
+function dropLine(x, h) {
+  const geo = new THREE.BufferGeometry().setFromPoints([V(x, h), V(x, 0)]);
+  const l = new THREE.Line(geo, new THREE.LineDashedMaterial({
+    color: 0x8a93a0, dashSize: 30, gapSize: 22, transparent: true, opacity: 0.4 }));
+  l.computeLineDistances();
+  return l;
+}
+scene.add(dropLine(M.x[0], M.h[0]), dropLine(S.interceptX, S.interceptAlt));
+
+/* 拦截点脉冲环 */
+const ipRing = new THREE.Mesh(
+  new THREE.RingGeometry(1, 1.08, 48),
+  new THREE.MeshBasicMaterial({ color: 0xff9f0a, transparent: true, opacity: 0.9, side: THREE.DoubleSide, fog: false })
+);
+ipRing.position.set(S.interceptX, S.interceptAlt, 0);
+scene.add(ipRing);
+
+/* 拦截闪光环 (撞击时触发) */
+const boomRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.86, 1, 48),
+  new THREE.MeshBasicMaterial({ color: 0xffd68f, transparent: true, opacity: 0, side: THREE.DoubleSide, fog: false })
+);
+boomRing.position.copy(ipRing.position);
+scene.add(boomRing);
+
+/* ---------- 撞击爆炸: 程序化火球 + 真实烟柱 (textures/smoke_plume.png) + 碎片 ---------- */
+const fireTex = (() => {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+  const c = cv.getContext("2d");
+  const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,240,1)");
+  g.addColorStop(0.22, "rgba(255,214,120,0.95)");
+  g.addColorStop(0.5, "rgba(255,140,50,0.55)");
+  g.addColorStop(0.8, "rgba(210,80,30,0.16)");
+  g.addColorStop(1, "rgba(160,50,20,0)");
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const fireball = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: fireTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+fireball.position.copy(ipRing.position);
+scene.add(fireball);
+const boomSmokeTex = { t: null };
+/* 命中烟柱: 优先 1024×2048 程序化烟柱, 失败回退原 640×888 照片 */
+loadTex("textures/smoke_plume_2k.png", t => { boomSmokeTex.t = t; });
+loadTex("textures/smoke_plume.png", t => { if (!boomSmokeTex.t) boomSmokeTex.t = t; });
+const boomSmokes = [];
+for (let i = 0; i < 3; i++) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: null, transparent: true, opacity: 0, depthWrite: false, fog: true,
+    color: 0xcfd3d8, rotation: (i - 1) * 0.18 }));
+  sp.position.copy(ipRing.position);
+  sp.userData.dx = (i - 1) * 46;
+  scene.add(sp);
+  boomSmokes.push(sp);
+}
+const DBN = 90;
+const debGeo = new THREE.BufferGeometry();
+const debPos = new Float32Array(DBN * 3);
+debGeo.setAttribute("position", new THREE.BufferAttribute(debPos, 3));
+const debris = new THREE.Points(debGeo, new THREE.PointsMaterial({
+  color: 0x9a9186, size: 11, transparent: true, opacity: 0, depthWrite: false, fog: false, sizeAttenuation: true }));
+scene.add(debris);
+let debVel = null;
+
+/* 二级火球: 橙色外焰 (比内核慢、更大) */
+const fireball2 = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: fireTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+  depthWrite: false, fog: false, color: 0xff8f2e }));
+fireball2.position.copy(ipRing.position);
+scene.add(fireball2);
+
+/* 高温火星: 加色小点, 快速衰减 */
+const SPKN = 140;
+const spkGeo = new THREE.BufferGeometry();
+const spkPos = new Float32Array(SPKN * 3);
+spkGeo.setAttribute("position", new THREE.BufferAttribute(spkPos, 3));
+const sparks = new THREE.Points(spkGeo, new THREE.PointsMaterial({
+  color: 0xffd7a0, size: 4.5, transparent: true, opacity: 0, depthWrite: false, fog: false,
+  blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+scene.add(sparks);
+let spkVel = null;
+
+/* 弹体解体残块: 命中瞬间从弹体上炸开的大块碎片 (弹身段/尾翼/喷口/头锥) */
+const CHUNK_N = 9;
+const chunks = [];
+{
+  const spec = [
+    [0xb9c0ca, 7.0, 3.2, 3.2], [0xb9c0ca, 5.0, 2.8, 2.8], [0x0a84ff, 2.6, 2.4, 2.4],
+    [0xb9c0ca, 5.0, 0.4, 3.2], [0xb9c0ca, 5.0, 0.4, 3.2], [0x9aa3ae, 3.2, 1.4, 2.6],
+    [0x2c3038, 2.4, 3.0, 3.0], [0xb9c0ca, 2.4, 2.2, 2.2], [0x2c3038, 1.8, 0.6, 1.8],
+  ];
+  for (let i = 0; i < CHUNK_N; i++) {
+    const [col, w, h, d] = spec[i];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, metalness: 0.55, envMapIntensity: 0.6 }));
+    m.visible = false;
+    scene.add(m);
+    chunks.push({ m, vel: new THREE.Vector3(), spin: new THREE.Vector3() });
+  }
+}
+
+/* 目标机中弹后的火球 + 断裂脱落机翼 */
+const tgtFire = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: fireTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+  depthWrite: false, fog: false, color: 0xff8a2a }));
+tgtFire.visible = false;
+scene.add(tgtFire);
+/* 火球贴图: 1024² 程序化火焰替换 128² 画布版 (4K 下不糊) */
+loadTex("textures/fireball_1k.png", t => {
+  t.colorSpace = THREE.SRGBColorSpace;
+  for (const s of [fireball, fireball2, tgtFire]) { s.material.map = t; s.material.needsUpdate = true; }
+});
+let tgtDown = null;                 /* 受损坠机状态 */
+let wreckWing = null, wreckWingVel = null, wreckWingSpin = null;
+/* 右翼断裂脱落: 克隆目标机右翼并按世界变换放飞, 原翼隐藏 */
+function detachWing() {
+  if (wreckWing) return;
+  const src = target.children[4];               /* buildTarget 顺序: [fus,nose,canopy,wingL,wingR,…] */
+  if (!src) return;
+  wreckWing = src.clone();
+  src.getWorldPosition(wreckWing.position);
+  src.getWorldQuaternion(wreckWing.quaternion);
+  const ws = new THREE.Vector3();
+  src.getWorldScale(ws);
+  wreckWing.scale.copy(ws).multiply(new THREE.Vector3(1, 1, Math.sign(src.scale.z) || 1));
+  scene.add(wreckWing);
+  src.visible = false;
+  wreckWingVel = new THREE.Vector3(-26 - Math.random() * 34, 8 + Math.random() * 16, (Math.random() - 0.5) * 30);
+  wreckWingSpin = new THREE.Vector3((Math.random() - 0.5) * 3.6, (Math.random() - 0.5) * 3.6, (Math.random() - 0.5) * 3.6);
+}
+/* 命中瞬间: 弹体解体成残块 + 火星 */
+function spawnWreck() {
+  const cx = ipRing.position.x, cy = ipRing.position.y;
+  for (const c of chunks) {
+    c.m.visible = true;
+    c.m.position.set(cx + (Math.random() - 0.5) * 10, cy + (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+    const a = Math.random() * Math.PI * 2, el = (Math.random() - 0.3) * 1.5;
+    const sp = 18 + Math.random() * 46;
+    c.vel.set(Math.cos(a) * Math.cos(el) * sp * 0.75 + 16, Math.sin(el) * sp + 8,
+              Math.sin(a) * Math.cos(el) * sp * 0.75);
+    c.spin.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);
+  }
+  spkVel = [];
+  for (let i = 0; i < SPKN; i++) {
+    const a = Math.random() * Math.PI * 2, el = (Math.random() - 0.25) * 1.6;
+    const sp = 40 + Math.random() * 190;
+    spkVel.push(new THREE.Vector3(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp + 20,
+                                  Math.sin(a) * Math.cos(el) * sp));
+    spkPos[i*3] = cx; spkPos[i*3+1] = cy; spkPos[i*3+2] = 0;
+  }
+  spkGeo.attributes.position.needsUpdate = true;
+}
+
+/* ---------- 尾焰拖尾: 最近 ~140 帧渐隐亮线 ---------- */
+const TRAIL_N = 140;
+const trailGeo = new THREE.BufferGeometry();
+const trailPos = new Float32Array(TRAIL_N * 3);
+const trailCol = new Float32Array(TRAIL_N * 3);
+trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPos, 3));
+trailGeo.setAttribute("color", new THREE.BufferAttribute(trailCol, 3));
+const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
+  vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, fog: false }));
+scene.add(trail);
+const trailPts = [];
+/* 拖尾点向量池: 循环复用 (池比容量多 1, 保证被复用的槽位已不在 trailPts 中),
+   避免每帧 new Vector3 造成 GC 抖动 */
+const trailPool = Array.from({ length: TRAIL_N + 1 }, () => new THREE.Vector3());
+let trailPoolIdx = 0;
+
+/* ---------- 烟团池: 发动机白烟 + 受损黑烟共用 (积云贴图的小尺寸渐隐公告板) ---------- */
+const PUFF_N = 240;
+const puffs = [];
+let puffCursor = 0, puffAcc = 0, dmgAcc = 0;
+for (let i = 0; i < PUFF_N; i++) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: null, transparent: true, opacity: 0, depthWrite: false, fog: true, color: 0xd8dce2 }));
+  sp.visible = false;
+  scene.add(sp);
+  puffs.push({ sp, age: 0, life: 1, s0: 10, s1: 60, vy: 0, vx: 0, peak: 0.4 });
+}
+/* 布一个烟团: dark=true 为受损黑烟 (更黑更大、上浮更快) */
+function emitPuff(x, y, dark, s0, s1, life, peak) {
+  const p = puffs[puffCursor++ % PUFF_N];
+  p.age = 0; p.life = life; p.s0 = s0; p.s1 = s1; p.peak = peak;
+  p.vy = dark ? 4 + Math.random() * 7 : 1.2 + Math.random() * 2.2;
+  p.vx = (Math.random() - 0.5) * (dark ? 16 : 6);
+  p.sp.visible = true;
+  p.sp.material.color.setHex(dark ? 0x4c5057 : 0xd8dce2);
+  if (dark && darkPuffTex) { p.sp.material.map = darkPuffTex; p.sp.material.rotation = (Math.random() - 0.5) * 0.5; }
+  else {
+    if (puffTexLight) p.sp.material.map = puffTexLight;
+    p.sp.material.rotation = Math.random() * Math.PI * 2;
+  }
+  const j = dark ? 10 : 4;
+  p.sp.position.set(x + (Math.random() - 0.5) * j, y + (Math.random() - 0.5) * j, (Math.random() - 0.5) * j);
+  return p;
+}
+
+/* ================================================================
+   3. 相机系统 —— 原版复刻(默认) + 全场侧视 + 轨道控制
+   ================================================================ */
+/* 原版机位: 官方 aero_guidance 的 3DoF Animation 块配置
+   (aerolibanim 掩码: camera_view='Fixed position', camera_pos=[2000 500 -3150],
+    view angle=10°, up=[0 0 -1], cameraTarget=导弹位置)。
+   即: 固定视点 [X=2000 m, 侧向 500 m, 海拔 3150 m], 始终注视导弹, 视场角 10°,
+   相机上方向为海拔向上 —— 这里逐项复刻 (数据系 Y 侧向 -> 本场景 Z, Z 向下 -> 海拔翻转) */
+const ORIG_EYE = V(2000, 3150, 500);
+const ORIG_FOV = 10;
+
+/* 全场侧视: Simulink 3DoF 动画的 2D 绘图面 —— 水平轴=前向距离 X, 垂直轴=海拔,
+   相机沿 +Z 轴看 X-Y 平面 (弹向右、目标向左相向飞行) */
+const SCENE_BOUNDS = (() => {
+  let x0 = Infinity, x1 = -Infinity, h0 = Infinity, h1 = -Infinity;
+  for (let i = 0; i < N; i++) {
+    if (M.x[i] < x0) x0 = M.x[i]; if (M.x[i] > x1) x1 = M.x[i];
+    if (G.x[i] < x0) x0 = G.x[i]; if (G.x[i] > x1) x1 = G.x[i];
+    if (M.h[i] < h0) h0 = M.h[i]; if (M.h[i] > h1) h1 = M.h[i];
+    if (G.h[i] < h0) h0 = G.h[i]; if (G.h[i] > h1) h1 = G.h[i];
+  }
+  h0 = Math.min(h0, 0);                    /* 含地面基线, 与官方动画一致 */
+  return { x0, x1, h0, h1 };
+})();
+const SIDE_CENTER = V((SCENE_BOUNDS.x0 + SCENE_BOUNDS.x1) / 2,
+                      (SCENE_BOUNDS.h0 + SCENE_BOUNDS.h1) / 2, 0);
+/* 自适应距离: 纵向(海拔)与横向(射程)都留边, 窗口比例变化时自动重算 */
+function sideDistance() {
+  const tanV = Math.tan(camera.fov * Math.PI / 360);
+  const dV = (SCENE_BOUNDS.h1 - SCENE_BOUNDS.h0) * 0.5 * 1.24 / tanV;
+  const dH = (SCENE_BOUNDS.x1 - SCENE_BOUNDS.x0) * 0.5 * 1.10 / (tanV * camera.aspect);
+  return Math.max(dV, dH, 1200);
+}
+
+const EngagementCenter = V(1800, 3300, 0);
+const cam = {
+  mode: "orig",
+  pos: ORIG_EYE.clone(),                                  /* 当前实际位置 */
+  look: V(M.x[0], M.h[0], 0),                             /* 当前实际注视点(导弹) */
+  goalPos: ORIG_EYE.clone(),
+  goalLook: V(M.x[0], M.h[0], 0),
+  /* 轨道参数 (orbit 模式) */
+  sph: new THREE.Spherical().setFromVector3(V(-900 - 1800, 2400 - 3300, 3600)),
+  cinemaAngle: 0.9,
+  drag: null, pan: null, transitioning: 0,
+};
+/* 相机姿态临时量: 每帧复用, 避免高频 new Vector3 造成 GC 抖动
+   (调用方只做即时读取/拷贝, 不会把返回值存起来跨帧使用) */
+const _poseMp = new THREE.Vector3(), _poseDir = new THREE.Vector3(),
+      _posePos = new THREE.Vector3(), _poseLook = new THREE.Vector3(), _poseTmp = new THREE.Vector3();
+function modePose() {
+  const t = simTime, t2 = Math.min(t + 0.05, T_END);
+  _poseMp.set(sample(M.x, t), sample(M.h, t), 0);
+  const vh = 1e-6 + Math.hypot(sample(M.x, t2) - _poseMp.x, sample(M.h, t2) - _poseMp.y);
+  _poseDir.set((sample(M.x, t2) - _poseMp.x) / vh, (sample(M.h, t2) - _poseMp.y) / vh, 0);
+  switch (cam.mode) {
+    case "orig":
+      /* 固定视点 + 注视导弹 + 10° 视场角: 与官方动画默认机位逐项一致 */
+      return { pos: ORIG_EYE, look: _poseMp, fov: ORIG_FOV };
+    case "side":
+      return { pos: _posePos.set(SIDE_CENTER.x, SIDE_CENTER.y, sideDistance()), look: SIDE_CENTER, fov: 46 };
+    case "chase": {
+      /* 侧后 3/4 视角: 弹后 70 m、上 32 m、侧 112 m —— 偏向侧后方,
+         整条羽流 (含激波钻石链) 与弹体一起入画 (正后方只能看到一个亮点) */
+      _posePos.copy(_poseMp).addScaledVector(_poseDir, -70).add(_poseTmp.set(0, 32, 112));
+      _poseLook.copy(_poseMp).addScaledVector(_poseDir, 30);
+      if (boomed && boomT >= 0) {
+        /* 命中后弹体消失、采样位置冻结在撞击点: 相机改为跟拍受损坠机的目标机
+           (侧下方机位, 避开机身黑烟尾迹), 与目标一起下坠, 破片/火球/断翼全程在画面内 */
+        const k = Math.min(1, boomT / 0.5), e = k * k * (3 - 2 * k);
+        const tx = tgtDown ? tgtDown.x : _poseMp.x, th = tgtDown ? tgtDown.h : _poseMp.y;
+        _poseTmp.set(tx + 15, th - 30, 92);
+        _posePos.lerp(_poseTmp, e);
+        _poseTmp.set(tx, th, 0);
+        _poseLook.lerp(_poseTmp, e);
+      }
+      return { pos: _posePos, look: _poseLook };
+    }
+    case "pov":
+      return { pos: _posePos.copy(_poseMp).addScaledVector(_poseDir, 14).add(_poseTmp.set(0, 5, 0)),
+               look: _poseLook.copy(_poseMp).addScaledVector(_poseDir, 900) };
+    case "top":
+      return { pos: _posePos.set(1900, 6400, 0.5), look: _poseLook.set(1900, 3300, 0) };
+    case "cinema": {
+      const a = cam.cinemaAngle;
+      return { pos: _posePos.copy(EngagementCenter).add(_poseTmp.set(Math.cos(a) * 3400, 1150, Math.sin(a) * 3400)),
+               look: EngagementCenter };
+    }
+    default: { /* orbit: 球坐标绕注视点 */
+      return { pos: _posePos.copy(cam.orbitCenter).add(_poseTmp.setFromSpherical(cam.sph)),
+               look: _poseLook.copy(cam.orbitCenter) };
+    }
+  }
+}
+cam.orbitCenter = EngagementCenter.clone();
+
+const dom = renderer.domElement;
+dom.addEventListener("pointerdown", e => {
+  if (cam.mode !== "orbit") return;
+  cam.drag = { x: e.clientX, y: e.clientY, btn: e.button };
+  dom.setPointerCapture(e.pointerId);
+});
+dom.addEventListener("pointermove", e => {
+  if (!cam.drag || cam.mode !== "orbit") return;
+  const dx = e.clientX - cam.drag.x, dy = e.clientY - cam.drag.y;
+  cam.drag.x = e.clientX; cam.drag.y = e.clientY;
+  if (cam.drag.btn === 2 || cam.drag.btn === 1) {           // 右/中键平移
+    const right = new THREE.Vector3().subVectors(cam.goalLook, cam.pos).cross(V(0,1,0)).normalize();
+    cam.orbitCenter.addScaledVector(right, dx * cam.sph.radius * 0.0007);
+    cam.orbitCenter.y += dy * cam.sph.radius * 0.0007;
+  } else {                                                   // 左键环绕
+    cam.sph.theta -= dx * 0.0055;
+    cam.sph.phi = Math.min(Math.PI - 0.08, Math.max(0.08, cam.sph.phi - dy * 0.0045));
+  }
+});
+addEventListener("pointerup", () => cam.drag = null);
+dom.addEventListener("contextmenu", e => e.preventDefault());
+dom.addEventListener("wheel", e => {
+  if (cam.mode !== "orbit") return;
+  cam.sph.radius = Math.min(26000, Math.max(60, cam.sph.radius * (1 + Math.sign(e.deltaY) * 0.09)));
+}, { passive: true });
+
+document.querySelectorAll("#camseg-inner button").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#camseg-inner button").forEach(x => x.classList.toggle("on", x === b));
+    cam.mode = b.dataset.cam;
+    cam.transitioning = 1.0;               // 1s 平滑过渡
+    if (cam.mode === "orbit") {            // 从当前位姿接管轨道
+      cam.orbitCenter = EngagementCenter.clone();
+      cam.sph.setFromVector3(V(cam.pos.x - cam.orbitCenter.x, cam.pos.y - cam.orbitCenter.y, cam.pos.z - cam.orbitCenter.z));
+      cam.sph.radius = Math.max(60, cam.sph.radius);
+    }
+  });
+});
+
+/* ================================================================
+   4. 回放引擎
+   ================================================================ */
+/* 默认速率 = 实时 (1×): 演示时间轴以 SLOW 倍采样, 故内部步进 10 = 真实 1 秒 */
+let simTime = 0, playing = false, speed = SLOW, ended = false, boomT = -1;
+
+const btnPlay = document.getElementById("btn-play");
+const icPlay = document.getElementById("ic-play"), icPause = document.getElementById("ic-pause");
+function setPlaying(p) {
+  if (ended && p) { simTime = 0; ended = false; resetBoom(); document.getElementById("replayseg").style.visibility = "hidden"; trailPts.length = 0; }
+  playing = p;
+  icPlay.style.display = p ? "none" : "block";
+  icPause.style.display = p ? "block" : "none";
+}
+btnPlay.addEventListener("click", () => setPlaying(!playing));
+
+const timeline = document.getElementById("timeline");
+let scrubbing = false;
+timeline.addEventListener("pointerdown", () => scrubbing = true);
+addEventListener("pointerup", () => scrubbing = false);
+timeline.addEventListener("input", () => {
+  simTime = parseFloat(timeline.value);
+  if (ended && simTime < T_END - 1e-3) { ended = false; document.getElementById("replayseg").style.visibility = "hidden"; }
+});
+
+document.querySelectorAll("#speedseg button").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#speedseg button").forEach(x => x.classList.toggle("on", x === b));
+    speed = parseFloat(b.dataset.s);
+  });
+});
+/* 终段慢放: 命中前 0.6 真实秒 (6 演示秒) 由当前速率平滑渐变到 0.2× */
+const btnSlowEnd = document.getElementById("btn-slowend");
+let slowEnd = false;
+btnSlowEnd.addEventListener("click", () => {
+  slowEnd = !slowEnd;
+  btnSlowEnd.classList.toggle("on", slowEnd);
+});
+function curSpeed() {
+  if (!slowEnd || speed <= 2) return speed;
+  const k = Math.min(1, Math.max(0, (simTime - (T_END - 6)) / 6));
+  const e = k * k * (3 - 2 * k);
+  return speed + (2 - speed) * e;
+}
+document.getElementById("btn-replay").addEventListener("click", () => { simTime = 0; ended = false; resetBoom(); setPlaying(true); document.getElementById("replayseg").style.visibility = "hidden"; });
+
+/* 键盘: Space 播放/暂停 · ←/→ ±0.1 真实秒 (Shift ±1 s) · Home 回起点 · 1-4 速率 · C 切机位 · F 沉浸 */
+addEventListener("keydown", e => {
+  if (e.target && e.target.tagName === "INPUT") return;
+  const camBtns = document.querySelectorAll("#camseg-inner button");
+  if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === "ArrowLeft") {
+    simTime = Math.max(0, simTime - (e.shiftKey ? 10 : 1));
+    if (ended && simTime < T_END - 1e-3) { ended = false; document.getElementById("replayseg").style.visibility = "hidden"; }
+  }
+  else if (e.key === "ArrowRight") simTime = Math.min(T_END, simTime + (e.shiftKey ? 10 : 1));
+  else if (e.key === "Home") { simTime = 0; ended = false; resetBoom(); trailPts.length = 0; document.getElementById("replayseg").style.visibility = "hidden"; }
+  else if (e.key >= "1" && e.key <= "4") document.querySelectorAll("#speedseg button")[+e.key - 1].click();
+  else if (e.key === "c" || e.key === "C") {
+    let i = 0;
+    camBtns.forEach((b, j) => { if (b.classList.contains("on")) i = j; });
+    camBtns[(i + 1) % camBtns.length].click();
+  }
+  else if (e.key === "f" || e.key === "F") setImmersive(!immersive);
+  else if (e.key === "Escape" && immersive && !document.fullscreenElement) setImmersive(false);
+});
+
+/* 主题切换 (由 UI 交互层接线, 见下方 "面板交互") */
+function toggleTheme() {
+  const next = themeName === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("gw-theme", next); } catch (e) {}
+  applySceneTheme(next);
+}
+
+/* ================================================================
+   面板交互: 拖拽 / 折叠 / 位置记忆 + 沉浸模式
+   —— 所有玻璃面板都能拖动、折叠; 沉浸模式隐藏全部界面, 只留右下角退出按钮
+   ================================================================ */
+const UI_KEY = "gw-ui-v1";
+let uiLayout = {};
+try { uiLayout = JSON.parse(localStorage.getItem(UI_KEY) || "{}") || {}; } catch (e) { uiLayout = {}; }
+const saveLayout = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(uiLayout)); } catch (e) {} };
+const panelState = id => (uiLayout[id] || (uiLayout[id] = {}));
+
+/* right/bottom/transform 定位统一换算成 left/top, 拖动后不再受窗口对齐影响 */
+function toAbsolute(el) {
+  const r = el.getBoundingClientRect();
+  el.style.left = r.left + "px";
+  el.style.top = r.top + "px";
+  el.style.right = "auto";
+  el.style.bottom = "auto";
+  el.style.transform = "none";
+}
+function clampInto(el) {
+  const w = el.offsetWidth, h = el.offsetHeight;
+  el.style.left = Math.min(Math.max(4, parseFloat(el.style.left) || 0), Math.max(4, innerWidth - w - 4)) + "px";
+  el.style.top = Math.min(Math.max(4, parseFloat(el.style.top) || 0), Math.max(4, innerHeight - h - 4)) + "px";
+}
+
+/* 拖动: 按住 handle 移动, 超过 3 px 才算拖动 (避免误触) */
+function dragify(el, handle) {
+  let sx = 0, sy = 0, ox = 0, oy = 0, on = false, moved = false;
+  handle.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || (e.target.closest && e.target.closest("button, input, canvas, .tab"))) return;
+    on = true; moved = false; sx = e.clientX; sy = e.clientY;
+    const r = el.getBoundingClientRect(); ox = r.left; oy = r.top;
+    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  handle.addEventListener("pointermove", e => {
+    if (!on) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!moved && Math.hypot(dx, dy) < 3) return;
+    if (!moved) { moved = true; toAbsolute(el); el.classList.add("dragging"); }
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = Math.min(Math.max(4, ox + dx), Math.max(4, innerWidth - w - 4)) + "px";
+    el.style.top = Math.min(Math.max(4, oy + dy), Math.max(4, innerHeight - h - 4)) + "px";
+  });
+  const end = () => {
+    if (!on) return;
+    on = false;
+    if (moved) {
+      el.classList.remove("dragging");
+      const st = panelState(el.id);
+      st.left = parseFloat(el.style.left); st.top = parseFloat(el.style.top);
+      saveLayout();
+    }
+  };
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
+/* 面板 = 顶部握把(拖动) + 折叠按钮 + 内容包裹层 (内容包进 .pbody 才能做折叠动画) */
+function makePanel(id) {
+  const el = document.getElementById(id);
+  if (!el || el.__panel) return null;
+  el.__panel = true;
+  const grip = document.createElement("div"); grip.className = "pgrip";
+  grip.title = "按住拖动面板 · 右上角箭头折叠/展开";
+  const bar = document.createElement("span"); bar.className = "pgrip-bar";
+  const btn = document.createElement("button"); btn.className = "pcollapse"; btn.title = "折叠 / 展开";
+  btn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.6 10.2 8 5.8l4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  grip.append(bar, btn);
+  const body = document.createElement("div"); body.className = "pbody";
+  const inner = document.createElement("div"); inner.className = "pbody-in";
+  while (el.firstChild) inner.appendChild(el.firstChild);
+  body.appendChild(inner);
+  el.append(grip, body);
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    el.classList.toggle("collapsed");
+    panelState(el.id).collapsed = el.classList.contains("collapsed");
+    saveLayout();
+  });
+  dragify(el, grip);
+  return el;
+}
+
+/* 小图标按钮: 拖动 = 移动, 轻点 = 触发 (拖动过则不触发) */
+function dragifyIcon(id, onTap) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let sx = 0, sy = 0, ox = 0, oy = 0, on = false, moved = false;
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    on = true; moved = false; sx = e.clientX; sy = e.clientY;
+    const r = el.getBoundingClientRect(); ox = r.left; oy = r.top;
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  el.addEventListener("pointermove", e => {
+    if (!on) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    if (!moved) {
+      moved = true;
+      const r = el.getBoundingClientRect();
+      el.style.left = r.left + "px"; el.style.top = r.top + "px";
+      el.style.right = "auto"; el.style.bottom = "auto";
+    }
+    el.style.left = Math.min(Math.max(4, ox + dx), Math.max(4, innerWidth - el.offsetWidth - 4)) + "px";
+    el.style.top = Math.min(Math.max(4, oy + dy), Math.max(4, innerHeight - el.offsetHeight - 4)) + "px";
+  });
+  const end = () => {
+    if (!on) return;
+    on = false;
+    if (moved) { const st = panelState(el.id); st.left = parseFloat(el.style.left); st.top = parseFloat(el.style.top); saveLayout(); }
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+  el.addEventListener("click", () => { if (!moved && onTap) onTap(); });
+}
+
+/* 恢复上次的布局 (换窗口尺寸时自动收回画面内) */
+function applyLayout() {
+  ["title", "readout", "chartpanel", "playbar", "camseg", "theme", "imm-btn"].forEach(id => {
+    const el = document.getElementById(id), st = uiLayout[id];
+    if (!el || !st) return;
+    if (Number.isFinite(st.left) && Number.isFinite(st.top)) {
+      el.style.left = st.left + "px"; el.style.top = st.top + "px";
+      el.style.right = "auto"; el.style.bottom = "auto"; el.style.transform = "none";
+      clampInto(el);
+    }
+    if (st.collapsed) el.classList.add("collapsed");
+  });
+}
+["title", "readout", "chartpanel", "playbar", "camseg"].forEach(makePanel);
+dragifyIcon("theme", toggleTheme);
+dragifyIcon("imm-btn", () => setImmersive(true));
+applyLayout();
+addEventListener("resize", () => {
+  ["title", "readout", "chartpanel", "playbar", "camseg", "theme", "imm-btn"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.style.left) clampInto(el);
+  });
+});
+
+/* ---------------- 沉浸模式 ---------------- */
+let immersive = false, immCursorTimer = 0;
+function setImmersive(on) {
+  on = !!on;
+  if (on === immersive) return;
+  immersive = on;
+  document.body.classList.toggle("immersive", on);
+  if (on) {
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.body.classList.remove("hide-cursor");
+    clearTimeout(immCursorTimer);
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  }
+}
+document.getElementById("imm-exit").addEventListener("click", () => setImmersive(false));
+/* 浏览器 Esc 退出全屏 → 同步退出沉浸模式 */
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && immersive) setImmersive(false);
+});
+/* 沉浸模式: 2.5 s 无操作自动隐藏鼠标指针 */
+addEventListener("pointermove", () => {
+  if (!immersive) return;
+  document.body.classList.remove("hide-cursor");
+  clearTimeout(immCursorTimer);
+  immCursorTimer = setTimeout(() => { if (immersive) document.body.classList.add("hide-cursor"); }, 2500);
+});
+/* 沉浸模式: 单击画面 = 播放/暂停 (拖动视角不算) */
+let domDownX = 0, domDownY = 0;
+dom.addEventListener("pointerdown", e => { domDownX = e.clientX; domDownY = e.clientY; });
+dom.addEventListener("click", e => {
+  if (!immersive) return;
+  if (Math.hypot(e.clientX - domDownX, e.clientY - domDownY) > 5) return;
+  setPlaying(!playing);
+});
+
+/* 供离线渲染 / 自动化测试调用 (与 __gwInfo / __gwRenderAll 同风格) */
+window.__gwUI = { setImmersive, toggleTheme, applyLayout, layout: uiLayout, state: () => ({ immersive }) };
+
+/* ================================================================
+   5. 图表 —— 离屏预渲染全程曲线 + 当前时间光标
+   ================================================================ */
+const chartCv = document.getElementById("chart");
+const chartCtx = chartCv.getContext("2d");
+let chartMetric = "h";
+const METRICS = {
+  h:    { label: "高度 (m)",   get: i => M.h[i],   tgt: i => G.h[i],  color: "#3f9bff", color2: "#ff9f0a" },
+  mach: { label: "马赫",       get: i => M.mach[i], tgt: null,        color: "#3f9bff" },
+  alpha:{ label: "攻角 (°)",   get: i => M.alphaDeg[i], tgt: null,    color: "#3f9bff" },
+  R:    { label: "弹目距离 (m)", get: i => RG.R[i],  tgt: null,         color: "#ff9f0a" },
+};
+const chartCache = {};
+function renderChartBase(key) {
+  const mdef = METRICS[key];
+  const dpr = Math.min(devicePixelRatio, 2);
+  const w = Math.round(310 * dpr), h = Math.round(148 * dpr);
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const c = cv.getContext("2d");
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < N; i++) {
+    const a = mdef.get(i); if (a < lo) lo = a; if (a > hi) hi = a;
+    if (mdef.tgt) { const b = mdef.tgt(i); if (b < lo) lo = b; if (b > hi) hi = b; }
+  }
+  if (hi - lo < 1e-9) hi = lo + 1;
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+  const X = t => 46 * dpr + (w - 58 * dpr) * (t / T_END);
+  const Y = v => (h - 18 * dpr) - (h - 30 * dpr) * ((v - lo) / (hi - lo));
+  // 网格 + 刻度
+  c.strokeStyle = "rgba(128,140,155,0.18)"; c.lineWidth = 1;
+  c.fillStyle = "rgba(150,160,172,0.85)";
+  c.font = `${9.5 * dpr}px -apple-system, "Segoe UI", sans-serif`;
+  for (let g = 0; g <= 3; g++) {
+    const v = lo + (hi - lo) * g / 3, y = Y(v);
+    c.beginPath(); c.moveTo(46 * dpr, y); c.lineTo(w - 12 * dpr, y); c.stroke();
+    const txt = Math.abs(v) >= 1000 ? (v/1000).toFixed(1) + "k" : v.toFixed(Math.abs(hi-lo) < 4 ? 1 : 0);
+    c.fillText(txt, 6 * dpr, y + 3 * dpr);
+  }
+  for (let g = 0; g <= 4; g++) {
+    const t = T_END * g / 4, x = X(t);
+    c.fillText((t / SLOW).toFixed(2) + "s", x - 9 * dpr, h - 4 * dpr);
+  }
+  // 曲线
+  function path(get) {
+    const p = new Path2D();
+    for (let i = 0; i < N; i++) {
+      const x = X(M.t[i]), y = Y(get(i));
+      i ? p.lineTo(x, y) : p.moveTo(x, y);
+    }
+    return p;
+  }
+  c.lineWidth = 1.6 * dpr; c.strokeStyle = mdef.color; c.stroke(path(mdef.get));
+  if (mdef.tgt) { c.strokeStyle = mdef.color2; c.setLineDash([4*dpr, 3*dpr]); c.stroke(path(mdef.tgt)); c.setLineDash([]); }
+  // 图例
+  c.fillStyle = mdef.color; c.fillText(mdef.label, 50 * dpr, 12 * dpr);
+  chartCache[key] = { cv, X, Y, dpr, lo, hi };
+}
+Object.keys(METRICS).forEach(renderChartBase);
+
+function drawChart() {
+  const cc = chartCache[chartMetric];
+  /* 只在尺寸真正变化时重设 canvas (每帧改 width/height 会重建整个后备缓冲,
+     是反复播放后卡顿的主因之一) */
+  const w = Math.round(310 * cc.dpr), h = Math.round(148 * cc.dpr);
+  if (chartCv.width !== w || chartCv.height !== h) { chartCv.width = w; chartCv.height = h; }
+  const c = chartCtx;
+  c.clearRect(0, 0, w, h);
+  c.drawImage(cc.cv, 0, 0);
+  // 当前时间光标
+  const x = cc.X(simTime);
+  c.strokeStyle = "rgba(245,245,247,0.55)"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(x, 14 * cc.dpr); c.lineTo(x, 130 * cc.dpr); c.stroke();
+  const arr = chartMetric === "h" ? M.h : getMetricArr(chartMetric);
+  const y = cc.Y(sample(arr, simTime));
+  c.fillStyle = METRICS[chartMetric].color;
+  c.beginPath(); c.arc(x, y, 3 * cc.dpr, 0, Math.PI * 2); c.fill();
+}
+function getMetricArr(key) {
+  return key === "mach" ? M.mach : key === "alpha" ? M.alphaDeg : RG.R;
+}
+document.querySelectorAll("#chart-tabs .tab").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#chart-tabs .tab").forEach(x => x.classList.toggle("on", x === b));
+    chartMetric = b.dataset.metric;
+  });
+});
+
+/* ================================================================
+   6. 每帧更新
+   ================================================================ */
+const el = id => document.getElementById(id);
+
+/* HUD 行: 一次性建好 <span>数值 + <small>单位</small>, 之后每帧只改文本节点。
+   旧写法每帧对 11 行做 innerHTML 赋值 = 每帧解析并重建 11 棵小 DOM 树, 是长时
+   播放后 GC 压力与卡顿的来源之一。 */
+const HUD = {};
+function initHud(id, unit, cls) {
+  const n = el(id);
+  const s = document.createElement("span");
+  n.textContent = "";
+  n.appendChild(s);
+  if (unit) { const u = document.createElement("small"); u.textContent = unit; n.appendChild(u); }
+  const c = "v " + (cls || "");
+  n.className = c;
+  HUD[id] = { node: n, span: s, txt: null, cls: c };
+}
+function setHud(id, txt, cls) {
+  const h = HUD[id];
+  if (h.txt !== txt) { h.span.textContent = txt; h.txt = txt; }
+  const c = "v " + (cls || "");
+  if (h.cls !== c) { h.node.className = c; h.cls = c; }
+}
+initHud("r-t", "s", "acc"); initHud("r-h", "m"); initHud("r-v", "m/s");
+initHud("r-mach", ""); initHud("r-theta", "°"); initHud("r-alpha", "°");
+initHud("r-g", "g"); initHud("r-r", "m", "ora"); initHud("r-rr", "m/s", "ora");
+initHud("r-th", "m", "ora"); initHud("r-tv", "m/s", "ora");
+function closingRate(t) {
+  const d = 0.06;
+  const a = sample(RG.R, Math.max(0, t - d)), b = sample(RG.R, Math.min(T_END, t + d));
+  return (b - a) / (2 * d);
+}
+
+/* HTML 标签投影 */
+const lbLaunch = el("lb-launch"), lbIP = el("lb-ip");
+const pLaunch = V(M.x[0], M.h[0]), pIP = V(S.interceptX, S.interceptAlt);
+const tmpV = new THREE.Vector3();
+/* 只在数值变化时写 style, 避免每帧无意义的样式失效/重排 */
+function placeLabel(node, world) {
+  tmpV.copy(world).project(camera);
+  const behind = tmpV.z > 1;
+  const op = behind ? "0" : "1";
+  if (node.__op !== op) { node.style.opacity = op; node.__op = op; }
+  if (!behind) {
+    const l = ((tmpV.x * 0.5 + 0.5) * innerWidth).toFixed(1) + "px";
+    const t = ((-tmpV.y * 0.5 + 0.5) * innerHeight).toFixed(1) + "px";
+    if (node.__l !== l) { node.style.left = l; node.__l = l; }
+    if (node.__t !== t) { node.style.top = t; node.__t = t; }
+  }
+}
+
+const flash = el("impact-flash");
+let flashT = -1, camShake = 0, boomed = false, endcardShown = false;
+const IMPACT_T = T_END - 0.02;
+/* 爆炸/闪光/碎片/坠机状态复位 (重播·回起点·回拖时调用) */
+function resetBoom() {
+  boomed = false; boomT = -1; flashT = -1; camShake = 0;
+  flash.style.opacity = "0";
+  fireball.material.opacity = 0;
+  fireball2.material.opacity = 0;
+  boomRing.material.opacity = 0;
+  boomSmokes.forEach(s => s.material.opacity = 0);
+  debris.material.opacity = 0;
+  sparks.material.opacity = 0;
+  debVel = null; spkVel = null;
+  chunks.forEach(c => { c.m.visible = false; });
+  tgtFire.visible = false;
+  tgtDown = null; dmgAcc = 0;
+  if (wreckWing) { scene.remove(wreckWing); wreckWing = null; wreckWingVel = null; wreckWingSpin = null; }
+  if (target.children[4]) target.children[4].visible = true;
+  missile.visible = true;
+  beaconM.visible = true;
+  puffs.forEach(p => { p.sp.visible = false; p.sp.material.opacity = 0; });
+  puffCursor = 0; puffAcc = 0;
+}
+
+/* ---- 视频导出: MediaRecorder 直接录 WebGL 画布 ----
+   点"录制视频"后自动回到 t=0 播一遍, 结束时把 Blob 存成文件下载。
+   只录三维视口 (DOM 面板/图表不在画布内), 时长 = 当前速率档位:
+   1× 约 3.4 s, 0.1× 约 34 s。分辨率 = 当前画布尺寸 (最大化窗口更清晰)。 */
+const btnRec = el("btn-rec");
+let recorder = null, recChunks = [], recMime = "", recStream = null;
+function pickRecMime() {
+  const cands = ["video/mp4;codecs=avc1.640028", "video/mp4",
+                 "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  for (const c of cands) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return "";
+}
+function stopRecording() {
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+}
+btnRec.addEventListener("click", () => {
+  if (recorder && recorder.state === "recording") { stopRecording(); return; }
+  recMime = pickRecMime();
+  if (!recMime) {
+    alert("当前浏览器不支持 MediaRecorder, 无法在页面内导出视频。\n可改用项目里的 Tools/RecordVideo 录屏工具。");
+    return;
+  }
+  /* 回到起点, 清干净上一轮状态 */
+  simTime = 0; ended = false; resetBoom(); trailPts.length = 0;
+  el("replayseg").style.visibility = "hidden";
+  recChunks = [];
+  try {
+    recStream = renderer.domElement.captureStream(60);
+    recorder = new MediaRecorder(recStream, {
+      mimeType: recMime, videoBitsPerSecond: 12000000,
+    });
+  } catch (e) {
+    alert("无法开始录制: " + e.message);
+    return;
+  }
+  recorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstop = () => {
+    /* 停止采集轨道: 否则画布会一直被捕获, 多次录制后逐次变卡 */
+    if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; }
+    const ext = recMime.indexOf("mp4") >= 0 ? "mp4" : "webm";
+    const rateTag = speed === SLOW ? "1x实时" : (SLOW / speed).toFixed(1).replace(/\.0$/, "") + "x慢放";
+    const blob = new Blob(recChunks, { type: recMime.split(";")[0] });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "导弹拦截交战_" + rateTag + "." + ext;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    recChunks = [];
+    btnRec.textContent = "⏺ 录制视频";
+    btnRec.classList.remove("rec-on");
+  };
+  recorder.start();
+  btnRec.textContent = "⏹ 停止录制";
+  btnRec.classList.add("rec-on");
+  setPlaying(true);
+});
+
+/* 离线渲染接管标志: 置位后 rAF 驱动停摆, 由 __gwRenderStep 逐帧驱动 */
+let __gwMode = false, __gwSkipDom = false, __gwClock = 0;
+
+let lastWall = performance.now();
+/* 时间推进 (播放中每帧一次; 离线渲染由 __gwRenderStep 直接驱动) */
+function advanceSim(dtWall) {
+  simTime = Math.max(0, simTime + dtWall * curSpeed());
+  if (simTime >= T_END) {
+    simTime = T_END;
+    playing = false; ended = true;
+    icPlay.style.display = "block"; icPause.style.display = "none";
+    el("replayseg").style.visibility = "visible";
+    setTimeout(stopRecording, 1200);   /* 命中后多录 1.2 s, 把火球/烟柱开头收进视频 */
+  }
+}
+/* 帧驱动: 只在这里注册 rAF (唯一驱动源), 避免重复注册导致每帧回调数累积 */
+function frame(now) {
+  /* 钳位: headless/虚拟时间下 rAF 时间戳可能早于模块初始化时刻 */
+  const dtWall = Math.min(0.05, Math.max(0, (now - lastWall) / 1000));
+  lastWall = now;
+  if (playing && !scrubbing) advanceSim(dtWall);
+  drawFrame(dtWall, now);
+}
+/* 绘制一帧 (不含时间推进): 采样遥测 → 驱动模型/特效/相机 → 刷新 HUD/图表 → 渲染 */
+function drawFrame(dtWall, now) {
+
+  /* ---- 采样并驱动模型 ---- */
+  const mx = sample(M.x, simTime), mh = sample(M.h, simTime);
+  const gx = sample(G.x, simTime), gh = sample(G.h, simTime);
+  const theta = sample(M.thetaDeg, simTime) * Math.PI / 180;
+  missile.position.set(mx, mh, 0);
+  missile.rotation.z = theta;
+  missile.visible = !boomed;              /* 命中后弹体不再存在, 只剩破片与残块 */
+
+  /* 目标机: 命中前按遥测飞行; 命中后进入"受损坠机"状态 (脱离遥测) */
+  let tgx = gx, tgh = gh;
+  if (!boomed) {
+    const gx2 = sample(G.x, Math.min(T_END, simTime + 0.4));
+    const gh2 = sample(G.h, Math.min(T_END, simTime + 0.4));
+    target.rotation.set(0, Math.PI, Math.atan2(gh2 - gh, -(gx2 - gx)));
+    tgtFire.visible = false;
+  } else {
+    if (!tgtDown) {
+      /* 撞击瞬间: 记录目标的位置与速度 (向 -X 巡航), 之后按失控状态推进 */
+      const vxReal = (sample(G.x, T_END) - sample(G.x, Math.max(0, T_END - 0.5))) / 0.5 / SLOW;
+      tgtDown = { t: 0, x: gx, h: gh, vx: vxReal, vh: -8,
+                  roll: 0, spinX: 1.15, spinY: 0.6, wob: 0 };
+      detachWing();
+    }
+    tgtDown.t += dtWall;
+    tgtDown.vh -= 10 * dtWall;                     /* 失控下坠 (保持在大机位视野内) */
+    tgtDown.vx *= Math.exp(-0.22 * dtWall);
+    tgtDown.x += tgtDown.vx * dtWall;
+    tgtDown.h += tgtDown.vh * dtWall;
+    tgtDown.roll += tgtDown.spinX * dtWall;
+    tgtDown.wob += dtWall;
+    if (tgtDown.h < 2) { tgtDown.h = 2; tgtDown.vh = 0; }
+    tgx = tgtDown.x; tgh = tgtDown.h;
+    /* 姿态: 持续滚转 + 机头朝速度矢量俯冲 + 摆动 */
+    const dive = Math.atan2(-tgtDown.vh, Math.max(60, Math.abs(tgtDown.vx)));
+    target.rotation.set(tgtDown.roll, Math.PI + Math.sin(tgtDown.wob * 1.3) * 0.55,
+                        dive + Math.sin(tgtDown.wob * 3.1) * 0.30);
+    /* 机身火球 + 持续黑烟 */
+    tgtFire.visible = true;
+    tgtFire.position.set(tgx - 5, tgh + 2, 0);
+    tgtFire.scale.setScalar(30 + 12 * Math.sin(now / 43));
+    tgtFire.material.opacity = 0.5 + 0.28 * Math.sin(now / 57);
+    dmgAcc += dtWall;
+    while (dmgAcc > 0.05) {
+      dmgAcc -= 0.05;
+      emitPuff(tgx - 4, tgh + 1, true, 9 + Math.random() * 7, 70 + Math.random() * 60,
+               7 + Math.random() * 5, 0.5);
+    }
+  }
+  target.position.set(tgx, tgh, 0);
+
+  /* 信标: 保持约恒定屏幕尺寸; 近距(原版机位特写)淡出, 避免糊在弹体上 */
+  beaconM.position.set(mx, mh, 0);
+  beaconG.position.set(tgx, tgh, 0);
+  beaconM.visible = !boomed;                       /* 弹体已毁, 弹信标同步消失 */
+  const dM = camera.position.distanceTo(beaconM.position);
+  const dG = camera.position.distanceTo(beaconG.position);
+  beaconM.scale.setScalar(Math.max(14, dM * 0.013));
+  beaconG.scale.setScalar(Math.max(12, dG * 0.011));
+  beaconM.material.opacity = Math.min(1, Math.max(0, (dM - 1100) / 1600));
+  beaconG.material.opacity = Math.min(1, Math.max(0, (dG - 1100) / 1600));
+
+  /* 轨迹亮线 drawRange */
+  const idx = Math.min(N - 1, Math.max(0, Math.round(simTime / T_END * (N - 1))));
+  lineMlive.geometry.setDrawRange(0, idx + 1);
+  lineGlive.geometry.setDrawRange(0, idx + 1);
+
+  /* 分析视图 (侧视/顶视/环绕) 显示工程网格, 拟真机位 (原版/追弹/影院) 隐藏 */
+  grid.visible = (cam.mode === "side" || cam.mode === "top" || cam.mode === "orbit");
+  /* 结果卡: 时间轴到末端即显示 (播完/拖到头/深链均可); 只在状态变化时改 DOM */
+  if (!__gwSkipDom) {
+    const showEnd = simTime >= T_END - 0.01;
+    if (showEnd !== endcardShown) { el("endcard").classList.toggle("show", showEnd); endcardShown = showEnd; }
+  }
+
+  /* 拖尾 */
+  if (playing || scrubbing || __gwMode) {
+    const tv = trailPool[trailPoolIdx++ % trailPool.length];
+    tv.set(mx, mh, 0);
+    trailPts.push(tv);
+    if (trailPts.length > TRAIL_N) trailPts.shift();
+  } else if (simTime === 0) trailPts.length = 0;
+  {
+    const n = trailPts.length;
+    for (let i = 0; i < n; i++) {
+      trailPos[i*3] = trailPts[i].x; trailPos[i*3+1] = trailPts[i].y; trailPos[i*3+2] = 0;
+      const f = Math.pow(i / Math.max(1, n - 1), 2) * 0.9;
+      trailCol[i*3] = f * 0.35; trailCol[i*3+1] = f * 0.65; trailCol[i*3+2] = f * 1.0;
+    }
+    trailGeo.setDrawRange(0, n);
+    trailGeo.attributes.position.needsUpdate = true;
+    trailGeo.attributes.color.needsUpdate = true;
+  }
+
+  /* 拦截点脉冲环 */
+  const pulse = (Math.sin(now / 500) + 1) / 2;
+  ipRing.scale.setScalar(26 + pulse * 10);
+  ipRing.material.opacity = 0.45 + 0.3 * pulse;
+
+  /* 发动机羽流 + 激波钻石 (马赫环); 命中后随弹体一起消失 */
+  {
+    const flL = missile.userData.flameLight, plume = missile.userData.plume;
+    flL.visible = plume.visible = !boomed;
+    const flick = 0.8 + 0.14 * Math.sin(now / 31) + 0.06 * Math.sin(now / 13);
+    flL.intensity = 1.8 + 1.6 * flick;
+    /* 尾气始终欠膨胀 → 马赫环全程存在; 随马赫数略增强, 命中后熄灭 */
+    const ma = sample(M.mach, simTime);
+    const on = boomed ? 0 : 1;
+    const mk = on * (0.72 + 0.28 * Math.min(1, ma / 2.6));
+    const ud = plume.userData;
+    ud.core.material.opacity = on * 0.95 * flick;
+    for (let i = 0; i < ud.glows.length; i++) {
+      const s = ud.glows[i];
+      s.material.opacity = on * s.userData.base * (0.9 + 0.1 * Math.sin(now / (30 + i * 6) + i * 1.9));
+    }
+    for (let i = 0; i < ud.diamonds.length; i++) {
+      const nd = ud.diamonds[i];
+      /* 驻波位置固定, 只做轻微明暗呼吸 —— 真实激波链就是"一明一暗"间隔 */
+      nd.userData.mat.opacity = mk * nd.userData.base * (0.84 + 0.16 * Math.sin(now / (17 + i * 4.7) + i * 2.2));
+    }
+  }
+
+  /* 发动机烟云: 沿弹尾等间隔布点, 逐渐放大变淡 + 缓慢上浮/横漂 */
+  if ((playing || __gwMode) && simTime < IMPACT_T) {
+    puffAcc += dtWall * curSpeed();
+    while (puffAcc > 0.12) {
+      puffAcc -= 0.12;
+      emitPuff(mx - Math.cos(theta) * 27, mh - Math.sin(theta) * 27, false,
+               5 + Math.random() * 4, 34 + Math.random() * 28, 9 + Math.random() * 5, 0.42);
+    }
+  }
+  for (const p of puffs) {
+    if (!p.sp.visible) continue;
+    p.age += dtWall * curSpeed();
+    const kk = p.age / p.life;
+    if (kk >= 1) { p.sp.visible = false; continue; }
+    p.sp.position.x += p.vx * dtWall;
+    p.sp.position.y += p.vy * dtWall;
+    p.sp.scale.setScalar(p.s0 + (p.s1 - p.s0) * kk);
+    p.sp.material.opacity = p.peak * (kk < 0.2 ? kk / 0.2 : 1 - (kk - 0.2) / 0.8);
+  }
+
+  /* 撞击触发: 时间轴越过命中即触发一次 (拖动/深链同样可见); 回退 1.5 s 以上自动复位 */
+  if (!boomed && simTime >= IMPACT_T) {
+    boomed = true; boomT = 0; flashT = 0; camShake = 1;
+    spawnWreck();                        /* 弹体解体成残块 + 火星 */
+  }
+  if (boomed && simTime < IMPACT_T - 1.5) resetBoom();
+
+  /* 撞击特效: 双层火球 / 冲击环 / 烟柱 / 碎片 / 火星 / 解体残块 */
+  if (boomT >= 0) {
+    boomT += dtWall;
+    /* 内核: 快速膨胀的白热球 */
+    const k1 = Math.min(1, boomT / 0.55);
+    fireball.scale.setScalar(12 + k1 * 165);
+    fireball.material.opacity = Math.min(1, 2.2 * (1 - k1));
+    /* 外焰: 更大更慢的橙色火球 */
+    const k2 = Math.min(1, boomT / 1.05);
+    fireball2.scale.setScalar(20 + k2 * 330);
+    fireball2.material.opacity = 0.85 * Math.sin(Math.min(1, boomT / 0.85) * Math.PI);
+    const kr = Math.min(1, boomT / 1.05);
+    boomRing.scale.setScalar(2 + kr * 165);
+    boomRing.material.opacity = (1 - kr) * 0.9;
+    boomSmokes.forEach(s => {
+      if (boomSmokeTex.t && s.material.map !== boomSmokeTex.t) { s.material.map = boomSmokeTex.t; s.material.needsUpdate = true; }
+      const kk = Math.min(1, Math.max(0, boomT / 6.0));
+      s.position.set(ipRing.position.x + s.userData.dx * kk,
+                     ipRing.position.y + 8 + kk * 150 - Math.abs(s.userData.dx) * kk * 0.3, 0);
+      const sc = 80 + kk * 330;
+      s.scale.set(sc, sc * 1.3, 1);
+      s.material.opacity = 0.62 * (kk < 0.1 ? kk / 0.1 : 1 - (kk - 0.1) / 0.9);
+    });
+    if (!debVel) {
+      debVel = [];
+      for (let i = 0; i < DBN; i++) {
+        const a = Math.random() * Math.PI * 2, v = 25 + Math.random() * 90;
+        debVel.push(V(Math.cos(a) * v, 12 + Math.random() * 60, Math.sin(a) * v));
+        debPos[i*3] = ipRing.position.x; debPos[i*3+1] = ipRing.position.y; debPos[i*3+2] = 0;
+      }
+    }
+    for (let i = 0; i < DBN; i++) {
+      debVel[i].y -= 110 * dtWall;
+      debPos[i*3] += debVel[i].x * dtWall;
+      debPos[i*3+1] += debVel[i].y * dtWall;
+      debPos[i*3+2] += debVel[i].z * dtWall;
+    }
+    debGeo.attributes.position.needsUpdate = true;
+    debris.material.opacity = Math.max(0, 1 - boomT / 2.6);
+    /* 火星: 更快更亮, 迅速熄灭 */
+    if (spkVel) {
+      for (let i = 0; i < SPKN; i++) {
+        spkVel[i].y -= 150 * dtWall;
+        spkVel[i].multiplyScalar(1 - 1.6 * dtWall);
+        spkPos[i*3] += spkVel[i].x * dtWall;
+        spkPos[i*3+1] += spkVel[i].y * dtWall;
+        spkPos[i*3+2] += spkVel[i].z * dtWall;
+      }
+      spkGeo.attributes.position.needsUpdate = true;
+      sparks.material.opacity = Math.max(0, 1 - boomT / 1.35);
+    }
+    if (boomT > 6.2) {
+      boomT = -1;
+      fireball.material.opacity = 0;
+      fireball2.material.opacity = 0;
+      boomSmokes.forEach(s => s.material.opacity = 0);
+      debris.material.opacity = 0;
+      sparks.material.opacity = 0;
+    }
+  }
+
+  /* 解体残块 / 断裂机翼: 弹道飞行 + 翻滚 + 落地停住 */
+  for (const c of chunks) {
+    if (!c.m.visible) continue;
+    c.vel.y -= 9 * dtWall;
+    c.m.position.addScaledVector(c.vel, dtWall);
+    c.m.rotation.x += c.spin.x * dtWall;
+    c.m.rotation.y += c.spin.y * dtWall;
+    c.m.rotation.z += c.spin.z * dtWall;
+    if (c.m.position.y < 1.5) { c.m.position.y = 1.5; c.vel.multiplyScalar(0.2); c.spin.multiplyScalar(0.9); }
+  }
+  if (wreckWing) {
+    wreckWingVel.y -= 9 * dtWall;
+    wreckWing.position.addScaledVector(wreckWingVel, dtWall);
+    wreckWing.rotation.x += wreckWingSpin.x * dtWall;
+    wreckWing.rotation.y += wreckWingSpin.y * dtWall;
+    wreckWing.rotation.z += wreckWingSpin.z * dtWall;
+  }
+  if (flashT >= 0) {
+    flashT += dtWall;
+    const k = Math.min(1, flashT / 0.55);
+    flash.style.opacity = String(Math.max(0, 0.75 * (1 - k)));
+    if (k >= 1) flashT = -1;
+  }
+
+  /* ---- 相机 ---- */
+  if (cam.mode === "cinema") cam.cinemaAngle += dtWall * 0.06;
+  const pose = modePose();
+  if (cam.mode === "orig") {
+    /* 原版机位逐帧硬跟随: 官方动画同样每帧注视导弹, 无平滑滞后 */
+    cam.pos.copy(pose.pos); cam.look.copy(pose.look);
+    cam.transitioning = 0;
+  } else {
+    const damp = cam.transitioning > 0 ? 1 - Math.pow(0.0018, dtWall) : (cam.mode === "orbit" ? 1 : 1 - Math.pow(0.002, dtWall));
+    if (cam.transitioning > 0) cam.transitioning -= dtWall;
+    cam.pos.lerp(pose.pos, damp);
+    cam.look.lerp(pose.look, damp);
+  }
+  const wantFov = pose.fov || 46;
+  /* FOV 平滑过渡 (原版 10° ↔ 其他机位 46°), 避免切机位时视角跳变 */
+  camera.fov += (wantFov - camera.fov) * (1 - Math.pow(0.0002, dtWall));
+  if (Math.abs(camera.fov - wantFov) > 0.01) camera.updateProjectionMatrix();
+  camera.position.copy(cam.pos);
+  /* 撞击震屏: 幅度指数衰减 */
+  if (camShake > 0.002) {
+    camera.position.x += (Math.random() - 0.5) * camShake * 26;
+    camera.position.y += (Math.random() - 0.5) * camShake * 18;
+    camera.position.z += (Math.random() - 0.5) * camShake * 26;
+    camShake *= Math.exp(-dtWall * 6);
+  }
+  camera.lookAt(cam.look);
+
+  /* ---- HUD / 图表 / 标签 (离线画布渲染时整段跳过, 提速) ---- */
+  if (!__gwSkipDom) {
+    if (!scrubbing) timeline.value = String(simTime);
+    const slowed = curSpeed() < speed - 0.05;
+    el("clk-t").textContent = "T+ " + (simTime / SLOW).toFixed(2) + (slowed ? " ·慢" : "");
+    setHud("r-t", (simTime / SLOW).toFixed(2), "acc");
+    setHud("r-h", Math.round(mh).toLocaleString("en-US").replace(/,/g, " "));
+    setHud("r-v", String(Math.round(sample(M.v, simTime))));
+    setHud("r-mach", sample(M.mach, simTime).toFixed(2));
+    setHud("r-theta", sample(M.thetaDeg, simTime).toFixed(1));
+    setHud("r-alpha", sample(M.alphaDeg, simTime).toFixed(1));
+    setHud("r-g", sample(M.accelG, simTime).toFixed(1));
+    const R = sample(RG.R, simTime);
+    setHud("r-r", R < 100 ? R.toFixed(1) : String(Math.round(R)), "ora");
+    const rr = -closingRate(simTime);
+    setHud("r-rr", String(Math.round(rr)), rr > 0 ? "ora" : "");
+    setHud("r-th", String(Math.round(gh)), "ora");
+    setHud("r-tv", String(Math.round(sample(G.v, simTime))), "ora");
+    drawChart();
+    placeLabel(lbLaunch, pLaunch);
+    placeLabel(lbIP, pIP);
+  }
+
+  renderer.render(scene, camera);
+}
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* 时间轴上的拦截标记位置 + 时间轴量程/总时长(真实秒) */
+timeline.max = String(T_END);
+el("mark-ip").style.left = (S.tMinRangeDemo / T_END * 100) + "%";
+el("clk-total").textContent = T_END_REAL.toFixed(2);
+
+/* 结果卡文案 (全部来自仿真 summary, 不手填) */
+{
+  const n = v => Math.round(v).toLocaleString("en-US").replace(/,/g, " ");
+  el("ec-line1").textContent = `交战时长 T+ ${T_END_REAL.toFixed(2)} s · 拦截点 X ${n(S.interceptX)} m · 高度 ${n(S.interceptAlt)} m`;
+  el("ec-line2").textContent = `最小弹目距离 ${S.minRange} m · 末端弹目距离 ${S.missDistance} m`;
+  el("ec-line3").textContent = `导弹峰值 Ma ${S.maxMach.toFixed(2)} · 最大攻角 ${S.maxAlphaDeg.toFixed(1)}° · 目标 ${Math.round(S.targetSpeed)} m/s @ ${n(S.targetAlt0)} m`;
+}
+
+/* URL 参数 ?t=<真实秒>: 直达指定时刻并暂停 (便于截取/分享某一瞬间, 0..3.44) */
+let __jumpT = null;
+{
+  const p = new URLSearchParams(location.search).get("t");
+  if (p !== null) {
+    const tv = parseFloat(p);
+    if (Number.isFinite(tv)) {
+      __jumpT = Math.min(T_END, Math.max(0, tv * SLOW));
+      simTime = __jumpT;
+      setPlaying(false);
+    }
+  }
+}
+
+/* URL 参数 ?cam=<机位>: 直达指定机位 (orig/side/orbit/cinema/chase/top), 便于分享与截图 */
+{
+  const cp = new URLSearchParams(location.search).get("cam");
+  if (cp) {
+    const b = document.querySelector('#camseg-inner button[data-cam="' + cp + '"]');
+    if (b) b.click();
+  }
+}
+
+/* ================================================================
+   7. 离线逐帧渲染 API —— 供 Tools/OfflineRender 渲染脚本调用
+   正常播放完全不受影响; 渲染时 __gwMode 接管帧循环 (rAF 停摆), 由脚本按
+   固定步长逐帧推进并抓取画布, 输出 PNG 帧序列交给 ffmpeg 合成视频 (非录屏)。
+   ================================================================ */
+window.__gwInfo = () => {
+  const gl = renderer.getContext();
+  const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+  return {
+    tEnd: T_END, tEndReal: T_END_REAL, slow: SLOW, speed,
+    canvas: [renderer.domElement.width, renderer.domElement.height],
+    gpu: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : "unknown",
+  };
+};
+window.__gwSetSpeed = v => { speed = Number(v) || SLOW; };
+window.__gwSetSlowEnd = v => { slowEnd = !!v; btnSlowEnd.classList.toggle("on", slowEnd); };
+/* 渲染脚本用: 接管/交还帧循环, 以及是否跳过 DOM 刷新 */
+window.__gwSetFlags = o => {
+  if (o && o.mode !== undefined) __gwMode = !!o.mode;
+  if (o && o.skipDom !== undefined) __gwSkipDom = !!o.skipDom;
+};
+/* 立即切机位并吸附到目标位姿 (跳过平滑过渡, 保证第一帧就是最终机位) */
+window.__gwSetCam = m => {
+  const b = document.querySelector('#camseg-inner button[data-cam="' + m + '"]');
+  if (!b) return false;
+  b.click();
+  cam.transitioning = 0;
+  const pose = modePose();
+  cam.pos.copy(pose.pos); cam.look.copy(pose.look);
+  camera.fov = pose.fov || 46; camera.updateProjectionMatrix();
+  return true;
+};
+/* 复位到 t=0 并清空全部瞬时特效 */
+window.__gwReset = () => {
+  setPlaying(false);
+  simTime = 0; ended = false; scrubbing = false;
+  resetBoom(); trailPts.length = 0;
+  el("replayseg").style.visibility = "hidden";
+  el("endcard").classList.remove("show"); endcardShown = false;
+  __gwClock = 0;
+  drawFrame(0, __gwClock);
+};
+/* 推进并绘制一帧 (固定步长; 返回推进后的仿真时间) */
+window.__gwRenderStep = dt => {
+  dt = Math.min(0.1, Math.max(0, Number(dt) || 1 / 60));
+  __gwClock += dt * 1000;
+  simTime = Math.min(T_END, simTime + dt * curSpeed());
+  drawFrame(dt, __gwClock);
+  return simTime;
+};
+/* 整段渲染: 逐帧 绘制→PNG→POST 给渲染脚本的本地服务器; 返回帧数。
+   opts: { fps, speed, cam, theme?, tail, slowEnd, skipDom, maxFrames } */
+window.__gwRenderAll = async opts => {
+  opts = opts || {};
+  const fps = opts.fps || 60, dt = 1 / fps;
+  const maxFrames = opts.maxFrames || 40000;
+  const tailN = Math.max(1, Math.round((opts.tail || 0) * fps));
+  __gwMode = true; __gwSkipDom = opts.skipDom !== false;
+  if (opts.cam) window.__gwSetCam(opts.cam);
+  if (opts.speed) window.__gwSetSpeed(opts.speed);
+  window.__gwSetSlowEnd(!!opts.slowEnd);
+  window.__gwReset();
+  /* toBlob 单帧超时保护: 4K 爆炸尾段偶发回调不返回 → 重试一次, 再不行重复上一帧,
+     保证帧序列连续 (否则 ffmpeg 会因缺帧中断合成) */
+  const snapOnce = () => new Promise(res => {
+    let done = false;
+    const fin = b => { if (!done) { done = true; res(b); } };
+    const t = setTimeout(() => fin(null), 20000);
+    try {
+      renderer.domElement.toBlob(b => { clearTimeout(t); fin(b); }, "image/png");
+    } catch (e) { clearTimeout(t); fin(null); }
+  });
+  let lastBlob = null;
+  const snap = async () => {
+    let b = await snapOnce();
+    if (!b) { await new Promise(r => setTimeout(r, 400)); b = await snapOnce(); }
+    return b;
+  };
+  let i = 0, tailLeft = null;
+  try {
+    while (i < maxFrames) {
+      let blob = await snap();
+      if (!blob && lastBlob) blob = lastBlob;          /* 卡帧 → 重复上一帧 */
+      if (!blob) throw new Error("canvas.toBlob 返回空 (第 " + i + " 帧)");
+      lastBlob = blob;
+      const r = await fetch("/__frame/" + i, { method: "POST", body: blob });
+      if (!r.ok) throw new Error("帧上传失败 " + r.status);
+      i++;
+      if (tailLeft !== null) { if (--tailLeft <= 0) break; }
+      if (window.__gwRenderStep(dt) >= T_END && tailLeft === null) tailLeft = tailN;
+    }
+  } finally {
+    __gwMode = false; __gwSkipDom = false;
+  }
+  return { frames: i, tEnd: T_END };
+};
+
+if (__jumpT === null) setPlaying(true);
+/* 帧循环: rAF 优先; 隐藏/后台上下文 (rAF 被暂停) 用定时器兜底。
+   播放速度基于真实时间差, 不受驱动频率影响。离线渲染期间整段让出。 */
+let __lastDrive = performance.now();
+function __loop(t) { __lastDrive = performance.now(); if (!__gwMode) frame(t); requestAnimationFrame(__loop); }
+requestAnimationFrame(__loop);
+setInterval(() => {
+  if (__gwMode) return;
+  if (performance.now() - __lastDrive > 320) {
+    __lastDrive = performance.now();
+    frame(performance.now());
+  }
+}, 66);
+</script>
+</body>
+</html>
