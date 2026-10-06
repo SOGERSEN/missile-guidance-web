@@ -1392,17 +1392,6 @@
       }
     });
     document.title = issues.length === 0 ? 'CHECK_OK' : 'CHECK_FAIL ' + issues.join('|');
-    // 临时诊断：静态+锚点模式下输出滚动落点（验证后移除）
-    if (STATIC && location.hash) {
-      var dt = document.getElementById(location.hash.slice(1));
-      var offs = slides.map(function(s){ return s.offsetTop + '/' + s.offsetHeight; }).join(' ');
-      document.title += ' DIAG hash=' + location.hash +
-        ' scrollTop=' + deck.scrollTop +
-        ' offsetTop=' + (dt ? dt.offsetTop : 'NA') +
-        ' idx=' + slides.indexOf(dt) +
-        ' fonts=' + (document.fonts ? document.fonts.status : 'NA') +
-        ' || ' + offs;
-    }
   }
 
   // Hero 星空（缓慢漂移 + 闪烁）
