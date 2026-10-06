@@ -96,10 +96,19 @@
     padding:76px 8.5vw 60px;position:relative;overflow:hidden;
   }
   .wrap{width:100%;max-width:1150px;margin:0 auto}
-  /* 焦点版式（用户验收过的唯一版式，硬性规则见 Rules/webshowcase_layout.mdc）：
-     内容列中心 ≈33.5vw（1920 下左缘 x≈173、中心 x≈643）；max(0,…) 使窄窗口自动贴左、永不横向越界。
-     禁止改成 margin:auto 居中或固定 vw 左移；任何改动必须先通过 ?static=1&check=1 的 ALIGN 校验。 */
-  .wrap.focus{max-width:940px;margin-left:max(0rem, calc(33.5vw - 470px));margin-right:auto}
+  /* 焦点版式（2026-10-06 用户裁决：交付/公开版内容居中——面向审阅者，注意力中心假设为屏幕中央；
+     旧版"列中心 33.5vw 偏左"为个人观看偏好，已弃用（历史见 Rules/webshowcase_layout.mdc R1 修订记录）。
+     硬性规则见 Rules/webshowcase_layout.mdc；任何改动必须先通过 ?static=1&check=1 的 ALIGN 校验。 */
+  .wrap.focus{max-width:940px;margin-left:auto;margin-right:auto}
+  /* 列内元素随列居中（2026-10-06 居中化配套）：标题/眉题/导语文字居中，
+     窄块盒（flatlist/note/steps/dict/grid/表格/图/公式）水平居中——块内文本仍左对齐，
+     保证可读性的同时视觉重心落在屏幕中央。 */
+  .wrap.focus>.eyebrow{justify-content:center}
+  .wrap.focus>.eyebrow .line{display:inline-block}
+  .wrap.focus>h2,.wrap.focus>.lead{text-align:center}
+  .wrap.focus>.lead{margin-left:auto;margin-right:auto}
+  .wrap.focus>.flatlist,.wrap.focus>.note,.wrap.focus>.steps,.wrap.focus>.dict,
+  .wrap.focus>.grid,.wrap.focus>.tbl-wrap,.wrap.focus>figure,.wrap.focus>.formula{margin-left:auto;margin-right:auto}
   /* 无框条目：取代底框卡片——纵向堆叠（章头一行 + 下方窄列说明），行宽收在黄金区内 */
   .flatlist{display:flex;flex-direction:column;gap:30px;max-width:640px}
   .flatlist .fitem{display:block}
@@ -1341,9 +1350,10 @@
 
   // 自检模式（?static=1&check=1）：程序化验收，三项全查——
   // ①纵向越界：内容/图片不得超出所在 slide 的 100vh；②横向越界：wrap/图片/表格不得超出视口右缘；
-  // ③黄金区对位（ALIGN，仅 >1100px 宽）：.wrap.focus 左缘必须等于 max(0,33.5vw-470)±3px，
-  //   内容列中心必须 ≤42vw+24px——防止版式被"居中化"回归（v2.4 事故，见 Rules/webshowcase_layout.mdc）。
-  // 任何页面改动后必须复跑且结果为 CHECK_OK；禁止为过检而修改本检查逻辑（只能改版式）。
+  // ③焦点区对位（ALIGN，仅 >1100px 宽）：.wrap.focus 必须水平居中——
+  //   左缘 = (vw-940)/2 ±3px，内容列中心 = vw/2 ±24px。
+  //   2026-10-06 用户裁决：交付/公开版居中（面向审阅者）；旧"偏左 33.5vw"为个人偏好已弃用，
+  //   守卫方向随之反转：现在防的是"被改回偏左"的回归。任何页面改动后必须复跑且 CHECK_OK。
   if (/[?&]check=1/.test(location.search)) {
     var issues = [];
     var vw = window.innerWidth;
@@ -1366,13 +1376,19 @@
         if (ir.bottom - sTop0 > vh + 2) issues.push((s.id || i) + ':imgB' + Math.round(ir.bottom - sTop0));
         if (ir.right > vw + 2) issues.push((s.id || i) + ':imgXR' + Math.round(ir.right - vw));
       }
-      // 黄金区对位校验（窄窗口 ≤1100px 时版式合法退化为居中，跳过）
+      // 焦点区居中校验（窄窗口 ≤1100px 时本就居中，跳过）。
+      // 参照系是 slide 的内容盒（左右各 8.5vw 内边距）——margin:auto 在其中居中，
+      // 故期望左缘 = (内容盒宽-940)/2，期望中心 = 内容盒中心（对称内边距下即视口中心）。
       if (vw > 1100 && wrap.classList.contains('focus')) {
+        var cs = getComputedStyle(s);
+        var padL = parseFloat(cs.paddingLeft), padR = parseFloat(cs.paddingRight);
+        var avail = s.clientWidth - padL - padR;
         var ml = parseFloat(getComputedStyle(wrap).marginLeft);
-        var exp = Math.max(0, 0.335 * vw - 470);
+        var exp = Math.max(0, (avail - 940) / 2);
         var cx = r.left + r.width / 2;
+        var mid = r.left - ml + avail / 2;
         if (Math.abs(ml - exp) > 3) issues.push((s.id || i) + ':ALIGNml' + Math.round(ml) + 'exp' + Math.round(exp));
-        if (cx > 0.42 * vw + 24) issues.push((s.id || i) + ':ALIGNc' + Math.round(cx) + 'max' + Math.round(0.42 * vw + 24));
+        if (Math.abs(cx - mid) > 3) issues.push((s.id || i) + ':ALIGNc' + Math.round(cx) + 'mid' + Math.round(mid));
       }
     });
     document.title = issues.length === 0 ? 'CHECK_OK' : 'CHECK_FAIL ' + issues.join('|');
